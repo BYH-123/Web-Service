@@ -47,4 +47,23 @@ app.get('/api/deals', async (_request, response) => {
   return response.json(data);
 });
 
+app.get('/api/news', async (_request, response) => {
+  response.set('Cache-Control', 'no-store');
+  const { data, error } = await supabase
+    .from('industry_news')
+    .select('title,summary,category,source_name,source_url,published_at')
+    .not('hot_pick_order', 'is', null)
+    .order('hot_pick_order', { ascending: true })
+    .order('published_at', { ascending: false })
+    .order('source_url')
+    .limit(5);
+
+  if (error) {
+    console.error('Industry news query failed:', error.message);
+    return response.status(502).json({ error: '게임 산업 뉴스를 불러오지 못했습니다.' });
+  }
+
+  return response.json(data);
+});
+
 app.listen(Number(PORT), () => console.log(`API listening on http://localhost:${PORT}`));

@@ -49,3 +49,6 @@ h1 { line-height: 1.2; }
   list-style: none;
 }
 .game h3 { margin: 0; line-height: 1.35; }
+
+.industry-news { margin-top: 3rem; }
+.industry-news-list { display: grid; gap: .75rem; list-style: none; padding: 0; }
