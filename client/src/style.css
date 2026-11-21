@@ -35,3 +35,17 @@ h1 { line-height: 1.2; }
 .game h2, .game p { margin: 0; }
 .game h2 { font-size: 1.15rem; line-height: 1.4; }
 .game a { margin-top: auto; color: #204faf; }
+
+.deals { margin-top: 3rem; }
+.deal-controls { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; }
+.deal-controls button, .deal-controls select { font: inherit; padding: .3rem .65rem; }
+.deal-list {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: min(85%, 19rem);
+  gap: 1rem;
+  overflow-x: auto;
+  padding: 0 0 1rem;
+  list-style: none;
+}
+.game h3 { margin: 0; line-height: 1.35; }

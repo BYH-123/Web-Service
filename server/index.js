@@ -28,4 +28,23 @@ app.get('/api/upcoming-games', async (_request, response) => {
   return response.json(data);
 });
 
+app.get('/api/deals', async (_request, response) => {
+  response.set('Cache-Control', 'no-store');
+  const { data, error } = await supabase
+    .from('game_deals')
+    .select('store,product_id,title,offer_type,original_price,sale_price,discount_percent,ends_at,checked_at,product_url')
+    .order('discount_percent', { ascending: false, nullsFirst: false })
+    .order('title', { ascending: true })
+    .order('store', { ascending: true })
+    .order('product_id', { ascending: true })
+    .order('offer_type', { ascending: true });
+
+  if (error) {
+    console.error('Deals query failed:', error.message);
+    return response.status(502).json({ error: '할인 목록을 불러오지 못했습니다.' });
+  }
+
+  return response.json(data);
+});
+
 app.listen(Number(PORT), () => console.log(`API listening on http://localhost:${PORT}`));
