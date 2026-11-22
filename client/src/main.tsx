@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Deals } from './Deals';
 import { IndustryNews } from './IndustryNews';
+import { EsportsEvents } from './EsportsEvents';
 import './style.css';
 
 type Game = {
@@ -72,6 +73,7 @@ function App() {
           </ul>
       )}
       <Deals />
+      <EsportsEvents />
       <IndustryNews />
     </main>
   );

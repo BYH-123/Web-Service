@@ -52,3 +52,7 @@ h1 { line-height: 1.2; }
 
 .industry-news { margin-top: 3rem; }
 .industry-news-list { display: grid; gap: .75rem; list-style: none; padding: 0; }
+
+.esports { margin-top: 3rem; }
+.esports-controls { display: flex; align-items: center; gap: .75rem; margin-top: .75rem; }
+.esports-controls button { font: inherit; min-width: 2.75rem; min-height: 2.75rem; }

@@ -66,4 +66,21 @@ app.get('/api/news', async (_request, response) => {
   return response.json(data);
 });
 
+app.get('/api/esports-events', async (_request, response) => {
+  response.set('Cache-Control', 'no-store');
+  const { data, error } = await supabase
+    .from('esports_events')
+    .select('slug,game,title,starts_at,event_url,watch_url')
+    .not('featured_order', 'is', null)
+    .order('featured_order')
+    .limit(3);
+
+  if (error) {
+    console.error('Esports query failed:', error.message);
+    return response.status(502).json({ error: '대회 목록을 불러오지 못했습니다.' });
+  }
+
+  return response.json(data);
+});
+
 app.listen(Number(PORT), () => console.log(`API listening on http://localhost:${PORT}`));
