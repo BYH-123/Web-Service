@@ -1,5 +1,6 @@
 import express from 'express';
 import { createClient } from '@supabase/supabase-js';
+import { startSteamReleaseDateSync } from './sync-steam-release-dates.js';
 
 const { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, PORT = 3000 } = process.env;
 
@@ -88,4 +89,13 @@ app.get('/api/esports-events', async (_request, response) => {
   return response.json(data);
 });
 
-app.listen(Number(PORT), () => console.log(`API listening on http://localhost:${PORT}`));
+app.listen(Number(PORT), () => {
+  console.log(`API listening on http://localhost:${PORT}`);
+  const { SUPABASE_RELEASE_SYNC_SECRET_KEY } = process.env;
+  if (SUPABASE_RELEASE_SYNC_SECRET_KEY) {
+    const releaseSyncClient = createClient(SUPABASE_URL, SUPABASE_RELEASE_SYNC_SECRET_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    startSteamReleaseDateSync(releaseSyncClient);
+  }
+});

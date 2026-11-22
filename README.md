@@ -41,3 +41,11 @@
 
 - 데이터베이스: PostgreSQL 기준으로 설계
 - 프론트엔드, 서버 및 배포 환경: 추후 확정
+
+## Steam 출시일 자동 갱신
+
+1. 게임 프로젝트의 Supabase SQL Editor에서 `server/upcoming-game-recommendations.sql` 전체를 실행합니다.
+2. Supabase 비밀 키를 서버의 `server/.env` 또는 배포 환경 변수에 `SUPABASE_RELEASE_SYNC_SECRET_KEY`로 설정합니다. 공개 키는 기존 `SUPABASE_PUBLISHABLE_KEY`에 유지합니다.
+3. 서버를 재시작합니다. 서버 시작 직후와 실행 중 약 24시간마다 Steam을 조회합니다.
+
+한국 Steam 스토어에서 정확한 날짜를 제공하는 미정 추천작의 Steam 일정만 업데이트합니다. 연도만 공개된 경우 기존 표시를 유지합니다. 갱신된 날짜는 홈페이지를 새로고침하면 표시됩니다.

@@ -119,6 +119,10 @@ grant select on public.upcoming_recommendation_games,
     public.upcoming_recommendation_releases, public.upcoming_recommendation_slots,
     public.upcoming_game_recommendations to anon, authenticated, service_role;
 
+-- 서버의 Steam 출시일 동기화에 필요한 쓰기 권한입니다.
+grant update (release_date, release_year)
+    on public.upcoming_recommendation_releases to service_role;
+
 notify pgrst, 'reload schema';
 commit;
 
