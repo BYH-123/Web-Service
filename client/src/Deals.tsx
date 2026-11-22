@@ -22,6 +22,8 @@ type Deal = {
   product_url: string;
 };
 
+const refreshInterval = 60_000;
+
 const won = new Intl.NumberFormat('ko-KR');
 const dateTime = new Intl.DateTimeFormat('ko-KR', {
   dateStyle: 'medium',
@@ -40,11 +42,21 @@ export function Deals() {
   const [attempt, setAttempt] = useState(0);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
+  const [now, setNow] = useState(Date.now);
 
   useEffect(() => {
     const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let pending = false;
+    let nextExpiry = Infinity;
+    let advanceBatch = attempt > 0;
 
     async function loadDeals() {
+      if (pending) return;
+      pending = true;
+      clearTimeout(timer);
+      setNow(Date.now());
+
       try {
         const response = await fetch('/api/deals?catalog=1', {
           cache: 'no-store',
@@ -53,17 +65,42 @@ export function Deals() {
         if (!response.ok) throw new Error('Deal request failed');
         const result: { deals: Deal[]; steamUnavailable: boolean } = await response.json();
         if (!controller.signal.aborted) {
-          setCatalog((previous) => ({ ...result, batch: (previous?.batch ?? -1) + 1 }));
+          const checkedAt = Date.now();
+          nextExpiry = Infinity;
+          for (const deal of result.deals) {
+            const expiry = deal.ends_at ? Date.parse(deal.ends_at) : Infinity;
+            if (expiry > checkedAt) nextExpiry = Math.min(nextExpiry, expiry);
+          }
+          const batchStep = advanceBatch ? 1 : 0;
+          advanceBatch = false;
+          setNow(checkedAt);
+          setFailed(false);
+          setCatalog((previous) => ({ ...result, batch: (previous?.batch ?? 0) + batchStep }));
         }
       } catch {
         if (!controller.signal.aborted) setFailed(true);
       } finally {
-        if (!controller.signal.aborted) setLoading(false);
+        pending = false;
+        if (!controller.signal.aborted) {
+          const untilExpiry = nextExpiry - Date.now();
+          if (untilExpiry <= 0) setNow(Date.now());
+          timer = setTimeout(loadDeals, untilExpiry > 0 ? Math.min(refreshInterval, untilExpiry) : refreshInterval);
+          setLoading(false);
+        }
       }
     }
 
+    function refreshVisibleTab() {
+      if (document.visibilityState === 'visible') void loadDeals();
+    }
+
     void loadDeals();
-    return () => controller.abort();
+    document.addEventListener('visibilitychange', refreshVisibleTab);
+    return () => {
+      controller.abort();
+      clearTimeout(timer);
+      document.removeEventListener('visibilitychange', refreshVisibleTab);
+    };
   }, [attempt]);
 
   const visibleStores = (Object.keys(stores) as Store[]).filter((key) => store === 'all' || key === store);
@@ -92,7 +129,8 @@ export function Deals() {
         ? '새로고침에 실패했습니다. 마지막으로 불러온 목록을 표시합니다.'
         : '할인 목록을 불러오지 못했습니다.'}</p>}
       {catalog && visibleStores.map((key) => {
-        const items = catalog.deals.filter((deal) => deal.store === key);
+        const items = catalog.deals.filter((deal) =>
+          deal.store === key && (!deal.ends_at || Date.parse(deal.ends_at) > now));
         const size = key === 'steam' ? 20 : 5;
         const batchCount = Math.max(1, Math.ceil(items.length / size));
         const batch = catalog.batch % batchCount;

@@ -53,13 +53,13 @@ app.get('/api/deals', async (request, response) => {
 
   if (request.query.catalog !== '1') return response.json(data);
 
+  const otherDeals = data.filter((deal) => deal.store !== 'steam');
   try {
     const steamDeals = await getSteamDeals();
-    const otherDeals = data.filter((deal) => deal.store !== 'steam');
     return response.json({ deals: [...steamDeals, ...otherDeals], steamUnavailable: false });
   } catch (steamError) {
     console.warn('Steam discounts lookup failed:', steamError.message);
-    return response.json({ deals: data, steamUnavailable: true });
+    return response.json({ deals: otherDeals, steamUnavailable: true });
   }
 });
 
