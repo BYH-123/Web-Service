@@ -14,18 +14,23 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
 const app = express();
 
 app.get('/api/upcoming-games', async (_request, response) => {
+  response.set('Cache-Control', 'no-store');
   const { data, error } = await supabase
-    .from('upcoming_games_test')
-    .select('slug,title,platforms,release_date,source_url')
-    .order('release_date', { ascending: true, nullsFirst: false })
-    .order('title', { ascending: true });
+    .from('upcoming_game_recommendations')
+    .select('audience,slot,category,slug,title,releases,source_url')
+    .order('audience')
+    .order('slot');
 
   if (error) {
     console.error('Upcoming games query failed:', error.message);
     return response.status(502).json({ error: '출시 예정 게임을 불러오지 못했습니다.' });
   }
 
-  return response.json(data);
+  return response.json(data.map((game) => ({
+    ...game,
+    platforms: game.releases.map((release) => release.platform),
+    release_date: game.releases.find((release) => release.release_date)?.release_date ?? null,
+  })));
 });
 
 app.get('/api/deals', async (_request, response) => {

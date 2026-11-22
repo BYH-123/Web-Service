@@ -8,8 +8,12 @@ import './style.css';
 type Game = {
   slug: string;
   title: string;
-  platforms: string[];
-  release_date: string | null;
+  audience: 'global' | 'kr';
+  releases: {
+    platform: string;
+    release_date: string | null;
+    release_year: number | null;
+  }[];
   source_url: string;
 };
 
@@ -21,6 +25,32 @@ const koreanDate = new Intl.DateTimeFormat('ko-KR', {
   dateStyle: 'long',
   timeZone: 'UTC',
 });
+
+function GameRecommendations({ title, games }: { title: string; games: Game[] }) {
+  return (
+    <section aria-label={title}>
+      <h2>{title}</h2>
+      {games.length === 0 ? <p>등록된 추천 게임이 없습니다.</p> : (
+        <ul className="games">
+          {games.map((game) => (
+            <li key={game.slug} className="game">
+              <h3>{game.title}</h3>
+              {game.releases.length === 0 && <p>출시일 미정</p>}
+              {game.releases.map((release) => (
+                <p key={release.platform}>
+                  {release.platform} · {release.release_date
+                    ? <time dateTime={release.release_date}>{koreanDate.format(new Date(release.release_date))}</time>
+                    : release.release_year ? `${release.release_year}년 예정` : '출시일 미정'}
+                </p>
+              ))}
+              <a href={game.source_url} target="_blank" rel="noopener noreferrer">출처 보기</a>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
 
 function App() {
   const [list, setList] = useState<GameList>({ status: 'loading' });
@@ -58,19 +88,10 @@ function App() {
         </div>
       )}
       {list.status === 'ready' && (
-        list.games.length === 0 ? <p>등록된 출시 예정 게임이 없습니다.</p> :
-          <ul className="games">
-            {list.games.map((game) => (
-              <li key={game.slug} className="game">
-                <h2>{game.title}</h2>
-                <p>{game.release_date
-                  ? <time dateTime={game.release_date}>{koreanDate.format(new Date(game.release_date))}</time>
-                  : '출시일 미정'}</p>
-                <p>{game.platforms.join(' · ')}</p>
-                <a href={game.source_url} target="_blank" rel="noopener noreferrer">출처 보기</a>
-              </li>
-            ))}
-          </ul>
+        <>
+          <GameRecommendations title="글로벌 추천" games={list.games.filter((game) => game.audience === 'global')} />
+          <GameRecommendations title="국내 추천" games={list.games.filter((game) => game.audience === 'kr')} />
+        </>
       )}
       <Deals />
       <EsportsEvents />
