@@ -22,7 +22,7 @@ type Deal = {
   product_url: string;
 };
 
-const refreshInterval = 60_000;
+const refreshInterval = 24 * 60 * 60 * 1000;
 
 const won = new Intl.NumberFormat('ko-KR');
 const dateTime = new Intl.DateTimeFormat('ko-KR', {
@@ -47,14 +47,9 @@ export function Deals() {
   useEffect(() => {
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
-    let pending = false;
-    let nextExpiry = Infinity;
     let advanceBatch = attempt > 0;
 
     async function loadDeals() {
-      if (pending) return;
-      pending = true;
-      clearTimeout(timer);
       setNow(Date.now());
 
       try {
@@ -65,41 +60,26 @@ export function Deals() {
         if (!response.ok) throw new Error('Deal request failed');
         const result: { deals: Deal[]; steamUnavailable: boolean } = await response.json();
         if (!controller.signal.aborted) {
-          const checkedAt = Date.now();
-          nextExpiry = Infinity;
-          for (const deal of result.deals) {
-            const expiry = deal.ends_at ? Date.parse(deal.ends_at) : Infinity;
-            if (expiry > checkedAt) nextExpiry = Math.min(nextExpiry, expiry);
-          }
           const batchStep = advanceBatch ? 1 : 0;
           advanceBatch = false;
-          setNow(checkedAt);
+          setNow(Date.now());
           setFailed(false);
           setCatalog((previous) => ({ ...result, batch: (previous?.batch ?? 0) + batchStep }));
         }
       } catch {
         if (!controller.signal.aborted) setFailed(true);
       } finally {
-        pending = false;
         if (!controller.signal.aborted) {
-          const untilExpiry = nextExpiry - Date.now();
-          if (untilExpiry <= 0) setNow(Date.now());
-          timer = setTimeout(loadDeals, untilExpiry > 0 ? Math.min(refreshInterval, untilExpiry) : refreshInterval);
+          timer = setTimeout(loadDeals, refreshInterval);
           setLoading(false);
         }
       }
     }
 
-    function refreshVisibleTab() {
-      if (document.visibilityState === 'visible') void loadDeals();
-    }
-
     void loadDeals();
-    document.addEventListener('visibilitychange', refreshVisibleTab);
     return () => {
       controller.abort();
       clearTimeout(timer);
-      document.removeEventListener('visibilitychange', refreshVisibleTab);
     };
   }, [attempt]);
 
