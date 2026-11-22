@@ -1,4 +1,5 @@
 import express from 'express';
+import { getSteamDeals } from './steam-deals.js';
 import { createClient } from '@supabase/supabase-js';
 import { startSteamReleaseDateSync } from './sync-steam-release-dates.js';
 
@@ -34,7 +35,7 @@ app.get('/api/upcoming-games', async (_request, response) => {
   })));
 });
 
-app.get('/api/deals', async (_request, response) => {
+app.get('/api/deals', async (request, response) => {
   response.set('Cache-Control', 'no-store');
   const { data, error } = await supabase
     .from('game_deals')
@@ -50,7 +51,16 @@ app.get('/api/deals', async (_request, response) => {
     return response.status(502).json({ error: '할인 목록을 불러오지 못했습니다.' });
   }
 
-  return response.json(data);
+  if (request.query.catalog !== '1') return response.json(data);
+
+  try {
+    const steamDeals = await getSteamDeals();
+    const otherDeals = data.filter((deal) => deal.store !== 'steam');
+    return response.json({ deals: [...steamDeals, ...otherDeals], steamUnavailable: false });
+  } catch (steamError) {
+    console.warn('Steam discounts lookup failed:', steamError.message);
+    return response.json({ deals: data, steamUnavailable: true });
+  }
 });
 
 app.get('/api/news', async (_request, response) => {

@@ -1,7 +1,7 @@
 begin;
 
 create table if not exists public.game_deals (
-  store text not null check (store in ('steam', 'epic', 'battle_net')),
+  store text not null check (store in ('steam', 'epic', 'microsoft', 'battle_net', 'ea')),
   product_id text not null,
   title text not null,
   offer_type text not null check (offer_type in ('discount', 'giveaway', 'free_play')),
@@ -15,6 +15,11 @@ create table if not exists public.game_deals (
   primary key (store, product_id, offer_type),
   check (sale_price is null or original_price is null or sale_price <= original_price)
 );
+
+-- Expand the store constraint on databases created before Microsoft Store and EA were added.
+alter table public.game_deals drop constraint if exists game_deals_store_check;
+alter table public.game_deals add constraint game_deals_store_check
+  check (store in ('steam', 'epic', 'microsoft', 'battle_net', 'ea'));
 
 alter table public.game_deals enable row level security;
 revoke all on public.game_deals from public, anon, authenticated;
