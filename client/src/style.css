@@ -67,3 +67,10 @@ h1 { line-height: 1.2; }
   -webkit-line-clamp: 3;
   overflow: hidden;
 }
+
+.esports-player {
+  width: 100%;
+  min-height: 300px;
+  aspect-ratio: 16 / 9;
+  border: 0;
+}

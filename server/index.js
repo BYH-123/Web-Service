@@ -1,3 +1,4 @@
+import { createTodayMatches } from './esports-today.js';
 import { createGameNewsCache } from './game-news.js';
 import express from 'express';
 import { getSteamDeals } from './steam-deals.js';
@@ -16,6 +17,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
 
 const app = express();
 const gameNews = createGameNewsCache();
+const todayMatches = createTodayMatches(process.env.PANDASCORE_API_TOKEN);
 
 app.get('/api/upcoming-games', async (_request, response) => {
   response.set('Cache-Control', 'no-store');
@@ -85,8 +87,12 @@ app.get('/api/news', async (_request, response) => {
   return response.json(data);
 });
 
-app.get('/api/esports-events', async (_request, response) => {
+app.get('/api/esports-events', async (request, response) => {
   response.set('Cache-Control', 'no-store');
+  if (request.query.today === '1') {
+    const matches = await todayMatches.getMatches();
+    if (matches.length) return response.json(matches);
+  }
   const { data, error } = await supabase
     .from('esports_events')
     .select('slug,game,title,starts_at,event_url,watch_url')
@@ -105,6 +111,7 @@ app.get('/api/esports-events', async (_request, response) => {
 app.listen(Number(PORT), () => {
   console.log(`API listening on http://localhost:${PORT}`);
   gameNews.start();
+  todayMatches.start();
   const { SUPABASE_RELEASE_SYNC_SECRET_KEY } = process.env;
   if (SUPABASE_RELEASE_SYNC_SECRET_KEY) {
     const releaseSyncClient = createClient(SUPABASE_URL, SUPABASE_RELEASE_SYNC_SECRET_KEY, {
