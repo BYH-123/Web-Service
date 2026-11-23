@@ -83,7 +83,9 @@ app.get('/api/deals', async (request, response) => {
     } else {
       const key = stores[index];
       unavailableStores.push(key);
-      console.warn(`${key} discounts lookup failed:`, result.reason.message);
+      if (result.reason.status !== 403 || key === 'steam' || key === 'microsoft') {
+        console.warn(`${key} discounts lookup failed:`, result.reason.message);
+      }
     }
   }
 

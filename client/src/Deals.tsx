@@ -27,6 +27,8 @@ type Deal = {
   product_url: string;
   price_note?: string;
   link_label?: string;
+  previous_check?: boolean;
+  fallback_until?: string;
 };
 
 type DealCatalog = {
@@ -146,7 +148,8 @@ export function Deals() {
         const current = catalog[key];
         if (!current) return null;
         const items = current.deals.filter((deal) =>
-          !deal.ends_at || Date.parse(deal.ends_at) > current.checkedAt);
+          (!deal.ends_at || Date.parse(deal.ends_at) > current.checkedAt) &&
+          (!deal.fallback_until || Date.parse(deal.fallback_until) > current.checkedAt));
         const hasLiveCatalog = key === 'steam' || key === 'microsoft';
         const { unavailable } = current;
         const size = hasLiveCatalog ? 20 : 5;
@@ -164,6 +167,9 @@ export function Deals() {
                   <> <a href={storeLinks[key]} target="_blank" rel="noopener noreferrer">공식 스토어에서 확인 ↗</a></>
                 )}
               </p>
+            )}
+            {visible.some((deal) => deal.previous_check) && (
+              <p role="status">자동 조회가 차단되어 마지막으로 확인한 할인 목록을 표시합니다.</p>
             )}
             {visible.length === 0 && !unavailable && (
               <p>{hasLiveCatalog ? '진행 중인 할인·프로모션이 없습니다.' : '등록된 할인·프로모션이 없습니다.'}</p>

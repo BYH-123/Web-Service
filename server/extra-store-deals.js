@@ -1,7 +1,9 @@
 import { load } from 'cheerio';
+import confirmedDeals from './confirmed-store-deals.json' with { type: 'json' };
 
 const cacheDuration = 10 * 60 * 1000;
 const resultLimit = 20;
+const fallbackLifetime = 24 * 60 * 60 * 1000;
 const epicKoreanDiscountCatalog =
   'https://store.epicgames.com/ko/browse?sortBy=releaseDate&sortDir=DESC&priceTier=tierDiscouted&category=Game&count=40&start=0';
 // Seasonal listings can remain online after the sale. Stop using them at the review deadline.
@@ -130,11 +132,35 @@ export const extraDealSources = {
 
 const cache = new Map();
 const pending = new Map();
+const forbidden = new Map();
+
+function getFallbackDeals(store, cached, now) {
+  const checkedAt = cached?.checkedAt ?? confirmedDeals.checkedAt;
+  const expiresAt = Date.parse(checkedAt) + fallbackLifetime;
+  if (now >= expiresAt) return null;
+
+  const deals = cached?.deals ?? confirmedDeals.stores[store];
+  if (!deals?.length) return null;
+  return deals
+    .filter((entry) => !entry.ends_at || Date.parse(entry.ends_at) > now)
+    .map((entry) => ({
+      ...entry, checked_at: checkedAt, previous_check: true,
+      fallback_until: new Date(expiresAt).toISOString(),
+    }));
+}
 
 export async function getExtraStoreDeals(store) {
   if (store !== 'epic' && Date.now() >= campaignReviewAt) return [];
+  const now = Date.now();
   const cached = cache.get(store);
-  if (cached && Date.now() < cached.expiresAt) return cached.deals;
+  if (cached && now < cached.expiresAt) return cached.deals;
+
+  const blocked = forbidden.get(store);
+  if (blocked && now < blocked.retryAt) {
+    const fallback = getFallbackDeals(store, cached, now);
+    if (fallback?.length) return fallback;
+    throw blocked.error;
+  }
 
   const request = pending.get(store);
   if (request) return request;
@@ -151,11 +177,20 @@ export async function getExtraStoreDeals(store) {
     }
 
     const deals = [...unique.values()];
-    cache.set(store, { deals, expiresAt: Date.now() + cacheDuration });
+    cache.set(store, { deals, checkedAt, expiresAt: Date.now() + cacheDuration });
     return deals;
   }
 
-  const result = refresh().finally(() => pending.delete(store));
+  const result = refresh().catch((error) => {
+    if (error.status !== 403) throw error;
+
+    const checked = Date.now();
+    forbidden.set(store, { error, retryAt: checked + cacheDuration });
+    console.warn(`${store} discounts lookup failed:`, error.message);
+    const fallback = getFallbackDeals(store, cached, checked);
+    if (fallback?.length) return fallback;
+    throw error;
+  }).finally(() => pending.delete(store));
   pending.set(store, result);
   return result;
 }
