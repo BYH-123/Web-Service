@@ -57,3 +57,13 @@ h1 { line-height: 1.2; }
 .esports { margin-top: 3rem; }
 .esports-controls { display: flex; align-items: center; gap: .75rem; margin-top: .75rem; }
 .esports-controls button { font: inherit; min-width: 2.75rem; min-height: 2.75rem; }
+
+.news-preview {
+  color: #536176;
+  font-size: .875rem;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}

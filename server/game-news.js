@@ -21,6 +21,9 @@ export function createGameNewsCache(fetchFeed = fetch, now = Date.now) {
       const title = article.children('title').text().trim();
       const link = URL.parse(article.children('link').text().trim());
       const publishedAt = new Date(article.children('pubDate').text().trim());
+      const description = load(article.children('description').text(), {}, false);
+      description('script, style').remove();
+      const summary = description.root().text().replace(/\s+/g, ' ').trim();
       const articleId = link?.searchParams.get('news');
       if (!title || !link || link.origin !== 'https://www.inven.co.kr' ||
           link.pathname !== '/webzine/news/' || !/^\d+$/.test(articleId ?? '') ||
@@ -29,7 +32,7 @@ export function createGameNewsCache(fetchFeed = fetch, now = Date.now) {
       const sourceUrl = `https://www.inven.co.kr/webzine/news/?news=${articleId}`;
       uniqueArticles.set(sourceUrl, {
         title,
-        summary: '',
+        summary,
         category: '게임 뉴스',
         source_name: '인벤',
         source_url: sourceUrl,

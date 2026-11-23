@@ -70,7 +70,7 @@ export function IndustryNews() {
                 <time dateTime={article.published_at}>{publishedDate.format(new Date(article.published_at))}</time>
               </p>
               <h3>{article.title}</h3>
-              {article.summary && <p>{article.summary}</p>}
+              {article.summary && <p className="news-preview">{article.summary}</p>}
               <a href={article.source_url} target="_blank" rel="noopener noreferrer">원문 보기 ↗</a>
             </li>
           ))}
