@@ -1,3 +1,4 @@
+import { getExtraStoreDeals } from './extra-store-deals.js';
 import { getMicrosoftDeals } from './microsoft-deals.js';
 import { createTodayMatches } from './esports-today.js';
 import { createGameNewsCache } from './game-news.js';
@@ -64,23 +65,37 @@ app.get('/api/deals', async (request, response) => {
 
   if (request.query.catalog !== '1') return response.json(data);
 
-  const [steam, microsoft] = await Promise.allSettled([
-    !store || store === 'steam' ? getSteamDeals() : [],
-    !store || store === 'microsoft' ? getMicrosoftDeals() : [],
-  ]);
-  if (steam.status === 'rejected') console.warn('Steam discounts lookup failed:', steam.reason.message);
-  if (microsoft.status === 'rejected') console.warn('Microsoft Store discounts lookup failed:', microsoft.reason.message);
+  const sources = {
+    steam: getSteamDeals,
+    microsoft: getMicrosoftDeals,
+    epic: () => getExtraStoreDeals('epic'),
+    ea: () => getExtraStoreDeals('ea'),
+    battle_net: () => getExtraStoreDeals('battle_net'),
+  };
+  const stores = store ? [store] : Object.keys(sources);
+  const results = await Promise.allSettled(stores.map((key) => sources[key]()));
+  const unavailableStores = [];
+  const liveDeals = [];
 
-  const otherDeals = data.filter((deal) =>
-    deal.store !== 'steam' && (deal.store !== 'microsoft' || microsoft.status === 'rejected'));
+  for (const [index, result] of results.entries()) {
+    if (result.status === 'fulfilled') {
+      liveDeals.push(...result.value);
+    } else {
+      const key = stores[index];
+      unavailableStores.push(key);
+      console.warn(`${key} discounts lookup failed:`, result.reason.message);
+    }
+  }
+
+  const liveKeys = new Set(liveDeals.map((entry) => JSON.stringify([entry.store, entry.product_id, entry.offer_type])));
+  const otherDeals = data.filter((entry) =>
+    entry.store !== 'steam' && (entry.store !== 'microsoft' || unavailableStores.includes('microsoft')) &&
+    !liveKeys.has(JSON.stringify([entry.store, entry.product_id, entry.offer_type])));
   return response.json({
-    deals: [
-      ...(steam.status === 'fulfilled' ? steam.value : []),
-      ...(microsoft.status === 'fulfilled' ? microsoft.value : []),
-      ...otherDeals,
-    ],
-    steamUnavailable: steam.status === 'rejected',
-    microsoftUnavailable: microsoft.status === 'rejected',
+    deals: [...liveDeals, ...otherDeals],
+    steamUnavailable: unavailableStores.includes('steam'),
+    microsoftUnavailable: unavailableStores.includes('microsoft'),
+    unavailableStores,
   });
 });
 

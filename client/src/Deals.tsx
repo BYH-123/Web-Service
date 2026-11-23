@@ -21,12 +21,15 @@ type Deal = {
   ends_at: string | null;
   checked_at: string | null;
   product_url: string;
+  price_note?: string;
+  link_label?: string;
 };
 
 type DealCatalog = {
   deals: Deal[];
   steamUnavailable: boolean;
   microsoftUnavailable?: boolean;
+  unavailableStores?: Store[];
 };
 
 type StoreCatalog = {
@@ -78,8 +81,9 @@ export function Deals() {
           setCatalog((previous) => {
             const next = { ...previous };
             for (const key of refreshedStores) {
-              const unavailable = key === 'steam' ? result.steamUnavailable
-                : key === 'microsoft' && result.microsoftUnavailable === true;
+              const unavailable = result.unavailableStores?.includes(key) ??
+                (key === 'steam' ? result.steamUnavailable
+                  : key === 'microsoft' && result.microsoftUnavailable === true);
               next[key] = {
                 deals: unavailable && previous?.[key]
                   ? previous[key].deals
@@ -163,16 +167,17 @@ export function Deals() {
                     <h4>{deal.title}</h4>
                     <p>
                       {deal.original_price !== null && <><del>{won.format(deal.original_price)}원</del>{' '}</>}
-                      <strong>{deal.sale_price === null ? '가격 미공개' : won.format(deal.sale_price) + '원'}</strong>
-                      {deal.discount_percent !== null && ' · ' + deal.discount_percent + '% 할인'}
+                      {!deal.price_note && <strong>{deal.sale_price === null ? '가격 미공개' : won.format(deal.sale_price) + '원'}</strong>}
+                      {deal.discount_percent !== null && (!deal.price_note ? ' · ' : '') + deal.discount_percent + '% 할인'}
                     </p>
+                    {deal.price_note && <p>{deal.price_note}</p>}
                     <p>{deal.ends_at
                       ? <>종료 <time dateTime={deal.ends_at}>{dateTime.format(new Date(deal.ends_at))}</time> (KST)</>
                       : '종료 시각 미확인'}</p>
                     <p>{deal.checked_at
                       ? <>가격 확인 <time dateTime={deal.checked_at}>{dateTime.format(new Date(deal.checked_at))}</time> (KST)</>
                       : '가격 확인 시각 미기록'}</p>
-                    <a href={deal.product_url} target="_blank" rel="noopener noreferrer">스토어에서 보기 ↗</a>
+                    <a href={deal.product_url} target="_blank" rel="noopener noreferrer">{deal.link_label ?? '스토어에서 보기'} ↗</a>
                   </li>
                 ))}
               </ul>
