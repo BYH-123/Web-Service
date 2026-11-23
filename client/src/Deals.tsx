@@ -91,7 +91,7 @@ export function Deals() {
                 (key === 'steam' ? result.steamUnavailable
                   : key === 'microsoft' && result.microsoftUnavailable === true);
               next[key] = {
-                deals: unavailable && previous?.[key]
+                deals: unavailable && !storeLinks[key] && previous?.[key]
                   ? previous[key].deals
                   : result.deals.filter((deal) => deal.store === key),
                 batch: (previous?.[key]?.batch ?? 0) + (advanceBatch && !unavailable ? 1 : 0),
@@ -156,20 +156,20 @@ export function Deals() {
         const batchCount = Math.max(1, Math.ceil(items.length / size));
         const batch = current.batch % batchCount;
         const visible = items.slice(batch * size, (batch + 1) * size);
+        const showingPrevious = visible.some((deal) => deal.previous_check);
 
         return (
           <section className="deal-store" key={key} aria-labelledby={`deal-store-${key}`}>
             <h3 id={`deal-store-${key}`}>{stores[key]}</h3>
-            {unavailable && (
+            {(unavailable || showingPrevious) && (
               <p role="status">
-                {stores[key]} 최신 할인 목록을 가져오지 못했습니다.
+                {showingPrevious
+                  ? '자동 조회가 차단되어 마지막으로 확인한 할인 목록을 표시합니다.'
+                  : `${stores[key]} 최신 할인 목록을 가져오지 못했습니다.`}
                 {storeLinks[key] && (
                   <> <a href={storeLinks[key]} target="_blank" rel="noopener noreferrer">공식 스토어에서 확인 ↗</a></>
                 )}
               </p>
-            )}
-            {visible.some((deal) => deal.previous_check) && (
-              <p role="status">자동 조회가 차단되어 마지막으로 확인한 할인 목록을 표시합니다.</p>
             )}
             {visible.length === 0 && !unavailable && (
               <p>{hasLiveCatalog ? '진행 중인 할인·프로모션이 없습니다.' : '등록된 할인·프로모션이 없습니다.'}</p>

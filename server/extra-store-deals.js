@@ -185,7 +185,10 @@ export async function getExtraStoreDeals(store) {
     if (error.status !== 403) throw error;
 
     const checked = Date.now();
-    forbidden.set(store, { error, retryAt: checked + cacheDuration });
+    const retryDelay = store === 'epic' || store === 'battle_net'
+      ? fallbackLifetime
+      : cacheDuration;
+    forbidden.set(store, { error, retryAt: checked + retryDelay });
     console.warn(`${store} discounts lookup failed:`, error.message);
     const fallback = getFallbackDeals(store, cached, checked);
     if (fallback?.length) return fallback;
