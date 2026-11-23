@@ -1,0 +1,76 @@
+body {
+  margin: 0;
+  background: #f4f6fa;
+  color: #15223a;
+  font: 16px/1.6 system-ui, sans-serif;
+}
+
+main {
+  max-width: 68rem;
+  margin: auto;
+  padding: 3rem 1.25rem;
+}
+
+h1 { line-height: 1.2; }
+
+.games {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+  gap: 1rem;
+  padding: 0;
+  list-style: none;
+}
+
+.game {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: .65rem;
+  padding: 1.4rem;
+  background: white;
+  border: 1px solid #d7e0ee;
+  border-radius: .75rem;
+}
+
+.game h2, .game p { margin: 0; }
+.game h2 { font-size: 1.15rem; line-height: 1.4; }
+.game a { margin-top: auto; color: #204faf; }
+
+.deals { margin-top: 3rem; }
+.deal-controls { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; }
+.deal-controls button, .deal-controls select { font: inherit; padding: .3rem .65rem; }
+.deal-store { margin-top: 1.5rem; }
+.deal-list {
+  display: grid;
+  gap: .75rem;
+  max-height: 32rem;
+  overflow-y: auto;
+  padding: 0 .25rem 0 0;
+  list-style: none;
+}
+.deal-list h4 { margin: 0; font-size: 1.05rem; }
+.game h3 { margin: 0; line-height: 1.35; }
+
+.industry-news { margin-top: 3rem; }
+.industry-news-list { display: grid; gap: .75rem; list-style: none; padding: 0; }
+
+.esports { margin-top: 3rem; }
+.esports-controls { display: flex; align-items: center; gap: .75rem; margin-top: .75rem; }
+.esports-controls button { font: inherit; min-width: 2.75rem; min-height: 2.75rem; }
+
+.news-preview {
+  color: #536176;
+  font-size: .875rem;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+
+.esports-player {
+  width: 100%;
+  min-height: 300px;
+  aspect-ratio: 16 / 9;
+  border: 0;
+}

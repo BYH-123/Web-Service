@@ -1,0 +1,249 @@
+{
+  "checkedAt": "2026-11-23T14:42:00.043Z",
+  "stores": {
+    "epic": [
+      {
+        "store": "epic",
+        "product_id": "wyrmhold-03f024",
+        "title": "Wyrmhold",
+        "product_url": "https://store.epicgames.com/p/wyrmhold-03f024?lang=ko",
+        "offer_type": "discount",
+        "original_price": 9200,
+        "sale_price": 7360,
+        "discount_percent": 20,
+        "ends_at": null
+      },
+      {
+        "store": "epic",
+        "product_id": "volleyball-coach-simulator-2027-09203f",
+        "title": "Volleyball Coach Simulator 2027",
+        "product_url": "https://store.epicgames.com/p/volleyball-coach-simulator-2027-09203f?lang=ko",
+        "offer_type": "discount",
+        "original_price": 15300,
+        "sale_price": 9180,
+        "discount_percent": 40,
+        "ends_at": null
+      },
+      {
+        "store": "epic",
+        "product_id": "minihero-wonderbound-117e52",
+        "title": "MiniHero: Wonderbound",
+        "product_url": "https://store.epicgames.com/p/minihero-wonderbound-117e52?lang=ko",
+        "offer_type": "discount",
+        "original_price": 5450,
+        "sale_price": 4900,
+        "discount_percent": 10,
+        "ends_at": null
+      },
+      {
+        "store": "epic",
+        "product_id": "t-rex-in-backrooms-bb9e8f",
+        "title": "T Rex In Backrooms",
+        "product_url": "https://store.epicgames.com/p/t-rex-in-backrooms-bb9e8f?lang=ko",
+        "offer_type": "discount",
+        "original_price": 1000,
+        "sale_price": 750,
+        "discount_percent": 25,
+        "ends_at": null
+      },
+      {
+        "store": "epic",
+        "product_id": "perfect-ninja-painter-6598fa",
+        "title": "Perfect Ninja Painter",
+        "product_url": "https://store.epicgames.com/p/perfect-ninja-painter-6598fa?lang=ko",
+        "offer_type": "discount",
+        "original_price": 5100,
+        "sale_price": 3060,
+        "discount_percent": 40,
+        "ends_at": null
+      },
+      {
+        "store": "epic",
+        "product_id": "the-prometheus-saga-e93fa2",
+        "title": "The Prometheus Saga",
+        "product_url": "https://store.epicgames.com/p/the-prometheus-saga-e93fa2?lang=ko",
+        "offer_type": "discount",
+        "original_price": 5100,
+        "sale_price": 4080,
+        "discount_percent": 20,
+        "ends_at": null
+      },
+      {
+        "store": "epic",
+        "product_id": "spirit-crossing-215317",
+        "title": "크로스랜드: 정령과 함께",
+        "product_url": "https://store.epicgames.com/p/spirit-crossing-215317?lang=ko",
+        "offer_type": "discount",
+        "original_price": 30700,
+        "sale_price": 27630,
+        "discount_percent": 10,
+        "ends_at": null
+      },
+      {
+        "store": "epic",
+        "product_id": "derelikt-80b75e",
+        "title": "DERELIKT",
+        "product_url": "https://store.epicgames.com/p/derelikt-80b75e?lang=ko",
+        "offer_type": "discount",
+        "original_price": 20400,
+        "sale_price": 18360,
+        "discount_percent": 10,
+        "ends_at": null
+      },
+      {
+        "store": "epic",
+        "product_id": "the-universim-89f2d8",
+        "title": "The Universim",
+        "product_url": "https://store.epicgames.com/p/the-universim-89f2d8?lang=ko",
+        "offer_type": "discount",
+        "original_price": 30000,
+        "sale_price": 18000,
+        "discount_percent": 40,
+        "ends_at": null
+      },
+      {
+        "store": "epic",
+        "product_id": "main-sequence-c0393e",
+        "title": "Main Sequence",
+        "product_url": "https://store.epicgames.com/p/main-sequence-c0393e?lang=ko",
+        "offer_type": "discount",
+        "original_price": 28000,
+        "sale_price": 22400,
+        "discount_percent": 20,
+        "ends_at": null
+      }
+    ],
+    "battle_net": [
+      {
+        "store": "battle_net",
+        "product_id": "124670",
+        "title": "Call of Duty: Vanguard",
+        "product_url": "https://gg.deals/game/call-of-duty-vanguard/",
+        "offer_type": "discount",
+        "original_price": null,
+        "sale_price": null,
+        "discount_percent": 67,
+        "ends_at": null,
+        "price_note": "GG.deals 해외 Battle.net 기준 · 국내 가격 미확인",
+        "link_label": "할인 출처 보기"
+      },
+      {
+        "store": "battle_net",
+        "product_id": "73502",
+        "title": "Cyberpunk 2077",
+        "product_url": "https://gg.deals/game/cyberpunk-2077/",
+        "offer_type": "discount",
+        "original_price": null,
+        "sale_price": null,
+        "discount_percent": 70,
+        "ends_at": null,
+        "price_note": "GG.deals 해외 Battle.net 기준 · 국내 가격 미확인",
+        "link_label": "할인 출처 보기"
+      },
+      {
+        "store": "battle_net",
+        "product_id": "50200",
+        "title": "Call of Duty: Black Ops 4",
+        "product_url": "https://gg.deals/game/call-of-duty-black-ops-4/",
+        "offer_type": "discount",
+        "original_price": null,
+        "sale_price": null,
+        "discount_percent": 75,
+        "ends_at": null,
+        "price_note": "GG.deals 해외 Battle.net 기준 · 국내 가격 미확인",
+        "link_label": "할인 출처 보기"
+      },
+      {
+        "store": "battle_net",
+        "product_id": "379718",
+        "title": "Tony Hawk's Pro Skater 3 + 4",
+        "product_url": "https://gg.deals/game/tony-hawks-pro-skater-3-4/",
+        "offer_type": "discount",
+        "original_price": null,
+        "sale_price": null,
+        "discount_percent": 50,
+        "ends_at": null,
+        "price_note": "GG.deals 해외 Battle.net 기준 · 국내 가격 미확인",
+        "link_label": "할인 출처 보기"
+      },
+      {
+        "store": "battle_net",
+        "product_id": "167730",
+        "title": "Avowed",
+        "product_url": "https://gg.deals/game/avowed/",
+        "offer_type": "discount",
+        "original_price": null,
+        "sale_price": null,
+        "discount_percent": 50,
+        "ends_at": null,
+        "price_note": "GG.deals 해외 Battle.net 기준 · 국내 가격 미확인",
+        "link_label": "할인 출처 보기"
+      },
+      {
+        "store": "battle_net",
+        "product_id": "98445",
+        "title": "Call of Duty: Black Ops Cold War",
+        "product_url": "https://gg.deals/game/call-of-duty-black-ops-cold-war/",
+        "offer_type": "discount",
+        "original_price": null,
+        "sale_price": null,
+        "discount_percent": 75,
+        "ends_at": null,
+        "price_note": "GG.deals 해외 Battle.net 기준 · 국내 가격 미확인",
+        "link_label": "할인 출처 보기"
+      },
+      {
+        "store": "battle_net",
+        "product_id": "324169",
+        "title": "DOOM: The Dark Ages",
+        "product_url": "https://gg.deals/game/doom-the-dark-ages/",
+        "offer_type": "discount",
+        "original_price": null,
+        "sale_price": null,
+        "discount_percent": 50,
+        "ends_at": null,
+        "price_note": "GG.deals 해외 Battle.net 기준 · 국내 가격 미확인",
+        "link_label": "할인 출처 보기"
+      },
+      {
+        "store": "battle_net",
+        "product_id": "109746",
+        "title": "Crash Bandicoot 4: It's About Time",
+        "product_url": "https://gg.deals/game/crash-bandicoot-4-its-about-time/",
+        "offer_type": "discount",
+        "original_price": null,
+        "sale_price": null,
+        "discount_percent": 50,
+        "ends_at": null,
+        "price_note": "GG.deals 해외 Battle.net 기준 · 국내 가격 미확인",
+        "link_label": "할인 출처 보기"
+      },
+      {
+        "store": "battle_net",
+        "product_id": "321843",
+        "title": "Call of Duty: Black Ops 6",
+        "product_url": "https://gg.deals/game/call-of-duty-black-ops-6/",
+        "offer_type": "discount",
+        "original_price": null,
+        "sale_price": null,
+        "discount_percent": 60,
+        "ends_at": null,
+        "price_note": "GG.deals 해외 Battle.net 기준 · 국내 가격 미확인",
+        "link_label": "할인 출처 보기"
+      },
+      {
+        "store": "battle_net",
+        "product_id": "88916",
+        "title": "Call of Duty: Modern Warfare 2 Campaign Remastered",
+        "product_url": "https://gg.deals/game/call-of-duty-modern-warfare-2-campaign-remastered/",
+        "offer_type": "discount",
+        "original_price": null,
+        "sale_price": null,
+        "discount_percent": 25,
+        "ends_at": null,
+        "price_note": "GG.deals 해외 Battle.net 기준 · 국내 가격 미확인",
+        "link_label": "할인 출처 보기"
+      }
+    ]
+  }
+}
