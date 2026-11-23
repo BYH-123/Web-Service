@@ -1,3 +1,4 @@
+import { createGameNewsCache } from './game-news.js';
 import express from 'express';
 import { getSteamDeals } from './steam-deals.js';
 import { createClient } from '@supabase/supabase-js';
@@ -14,6 +15,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
 });
 
 const app = express();
+const gameNews = createGameNewsCache();
 
 app.get('/api/upcoming-games', async (_request, response) => {
   response.set('Cache-Control', 'no-store');
@@ -65,14 +67,15 @@ app.get('/api/deals', async (request, response) => {
 
 app.get('/api/news', async (_request, response) => {
   response.set('Cache-Control', 'no-store');
+  const latest = await gameNews.getArticles();
+  if (latest) return response.json(latest);
+
   const { data, error } = await supabase
     .from('industry_news')
     .select('title,summary,category,source_name,source_url,published_at')
-    .not('hot_pick_order', 'is', null)
-    .order('hot_pick_order', { ascending: true })
     .order('published_at', { ascending: false })
     .order('source_url')
-    .limit(5);
+    .limit(10);
 
   if (error) {
     console.error('Industry news query failed:', error.message);
@@ -101,6 +104,7 @@ app.get('/api/esports-events', async (_request, response) => {
 
 app.listen(Number(PORT), () => {
   console.log(`API listening on http://localhost:${PORT}`);
+  gameNews.start();
   const { SUPABASE_RELEASE_SYNC_SECRET_KEY } = process.env;
   if (SUPABASE_RELEASE_SYNC_SECRET_KEY) {
     const releaseSyncClient = createClient(SUPABASE_URL, SUPABASE_RELEASE_SYNC_SECRET_KEY, {
