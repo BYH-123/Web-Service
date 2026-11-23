@@ -10,6 +10,10 @@ const stores = {
 
 type Store = keyof typeof stores;
 const storeKeys = Object.keys(stores) as Store[];
+const storeLinks: Partial<Record<Store, string>> = {
+  epic: 'https://store.epicgames.com/sales-and-specials/?lang=ko',
+  battle_net: 'https://kr.shop.battle.net/ko-kr',
+};
 type Deal = {
   store: Store;
   product_id: string;
@@ -154,7 +158,12 @@ export function Deals() {
           <section className="deal-store" key={key} aria-labelledby={`deal-store-${key}`}>
             <h3 id={`deal-store-${key}`}>{stores[key]}</h3>
             {unavailable && (
-              <p role="status">{stores[key]} 최신 할인 목록을 가져오지 못했습니다.</p>
+              <p role="status">
+                {stores[key]} 최신 할인 목록을 가져오지 못했습니다.
+                {storeLinks[key] && (
+                  <> <a href={storeLinks[key]} target="_blank" rel="noopener noreferrer">공식 스토어에서 확인 ↗</a></>
+                )}
+              </p>
             )}
             {visible.length === 0 && !unavailable && (
               <p>{hasLiveCatalog ? '진행 중인 할인·프로모션이 없습니다.' : '등록된 할인·프로모션이 없습니다.'}</p>

@@ -2,6 +2,8 @@ import { load } from 'cheerio';
 
 const cacheDuration = 10 * 60 * 1000;
 const resultLimit = 20;
+const epicKoreanDiscountCatalog =
+  'https://store.epicgames.com/ko/browse?sortBy=releaseDate&sortDir=DESC&priceTier=tierDiscouted&category=Game&count=40&start=0';
 // Seasonal listings can remain online after the sale. Stop using them at the review deadline.
 const campaignReviewAt = Date.parse('2026-12-01T00:00:00+09:00');
 
@@ -83,12 +85,24 @@ function battleNetDeals($) {
 
 async function loadStorePage(url) {
   const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
-  if (!response.ok) throw new Error(`Store HTTP ${response.status}`);
+  if (!response.ok) {
+    const { hostname, pathname } = new URL(url);
+    throw Object.assign(new Error(`Store HTTP ${response.status} at ${hostname}${pathname}`), {
+      status: response.status,
+    });
+  }
   return load(await response.text());
 }
 
 async function loadEpicDiscounts(url) {
-  const $ = await loadStorePage(url);
+  let $;
+  try {
+    $ = await loadStorePage(url);
+  } catch (error) {
+    if (error.status !== 403) throw error;
+    return loadStorePage(epicKoreanDiscountCatalog);
+  }
+
   // Follow the official specials page's discounted catalog in the Korean storefront.
   const catalog = $('a[href]').toArray()
     .map((element) => URL.parse($(element).attr('href'), url))
