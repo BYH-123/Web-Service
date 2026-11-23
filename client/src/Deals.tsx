@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 const stores = {
   steam: 'Steam',
   epic: 'Epic Games Store',
-  microsoft: 'Microsoft Store',
+  microsoft: 'Microsoft Store (Windows PC)',
   battle_net: 'Battle.net',
   ea: 'EA',
 };

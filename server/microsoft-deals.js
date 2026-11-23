@@ -29,6 +29,11 @@ async function fetchPage(offset, fetchStore) {
       Number(list.offset) !== offset || list.error) {
     throw new Error('Invalid Microsoft Store list data');
   }
+  const { locale, department, deviceType, listName } = list.baseParams ?? {};
+  if (locale?.toLowerCase() !== 'ko-kr' || department !== 'games' ||
+      deviceType !== 'pc' || listName !== 'deals') {
+    throw new Error('Microsoft Store response is not the Korean Windows PC game deals catalog');
+  }
   return list;
 }
 

@@ -89,7 +89,7 @@ app.get('/api/deals', async (request, response) => {
 
   const liveKeys = new Set(liveDeals.map((entry) => JSON.stringify([entry.store, entry.product_id, entry.offer_type])));
   const otherDeals = data.filter((entry) =>
-    entry.store !== 'steam' && (entry.store !== 'microsoft' || unavailableStores.includes('microsoft')) &&
+    entry.store !== 'steam' && entry.store !== 'microsoft' &&
     !liveKeys.has(JSON.stringify([entry.store, entry.product_id, entry.offer_type])));
   return response.json({
     deals: [...liveDeals, ...otherDeals],
