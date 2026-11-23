@@ -42,14 +42,20 @@ app.get('/api/upcoming-games', async (_request, response) => {
 
 app.get('/api/deals', async (request, response) => {
   response.set('Cache-Control', 'no-store');
-  const { data, error } = await supabase
-    .from('game_deals')
+  const { store } = request.query;
+  if (store !== undefined && !['steam', 'epic', 'microsoft', 'battle_net', 'ea'].includes(store)) {
+    return response.status(400).json({ error: '지원하지 않는 스토어입니다.' });
+  }
+
+  const query = supabase.from('game_deals')
     .select('store,product_id,title,offer_type,original_price,sale_price,discount_percent,ends_at,checked_at,product_url')
     .order('discount_percent', { ascending: false, nullsFirst: false })
     .order('title', { ascending: true })
     .order('store', { ascending: true })
     .order('product_id', { ascending: true })
     .order('offer_type', { ascending: true });
+
+  const { data, error } = await (store ? query.eq('store', store) : query);
 
   if (error) {
     console.error('Deals query failed:', error.message);
@@ -58,7 +64,10 @@ app.get('/api/deals', async (request, response) => {
 
   if (request.query.catalog !== '1') return response.json(data);
 
-  const [steam, microsoft] = await Promise.allSettled([getSteamDeals(), getMicrosoftDeals()]);
+  const [steam, microsoft] = await Promise.allSettled([
+    !store || store === 'steam' ? getSteamDeals() : [],
+    !store || store === 'microsoft' ? getMicrosoftDeals() : [],
+  ]);
   if (steam.status === 'rejected') console.warn('Steam discounts lookup failed:', steam.reason.message);
   if (microsoft.status === 'rejected') console.warn('Microsoft Store discounts lookup failed:', microsoft.reason.message);
 

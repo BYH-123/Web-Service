@@ -9,6 +9,7 @@ const stores = {
 };
 
 type Store = keyof typeof stores;
+const storeKeys = Object.keys(stores) as Store[];
 type Deal = {
   store: Store;
   product_id: string;
@@ -28,6 +29,13 @@ type DealCatalog = {
   microsoftUnavailable?: boolean;
 };
 
+type StoreCatalog = {
+  deals: Deal[];
+  batch: number;
+  unavailable: boolean;
+  checkedAt: number;
+};
+
 const refreshInterval = 24 * 60 * 60 * 1000;
 
 const won = new Intl.NumberFormat('ko-KR');
@@ -43,53 +51,65 @@ const offerLabels = {
 };
 
 export function Deals() {
-  const [catalog, setCatalog] = useState<DealCatalog & { batch: number } | null>(null);
+  const [catalog, setCatalog] = useState<Partial<Record<Store, StoreCatalog>> | null>(null);
   const [store, setStore] = useState<Store | 'all'>('all');
-  const [attempt, setAttempt] = useState(0);
+  const [refresh, setRefresh] = useState<{ store: Store | 'all' } | null>(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
-  const [now, setNow] = useState(Date.now);
 
   useEffect(() => {
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
-    let advanceBatch = attempt > 0;
-
-    async function loadDeals() {
-      setNow(Date.now());
+    async function loadDeals(scope: Store | 'all', advanceBatch: boolean) {
+      const params = new URLSearchParams({ catalog: '1' });
+      if (scope !== 'all') params.set('store', scope);
 
       try {
-        const response = await fetch('/api/deals?catalog=1', {
+        const response = await fetch(`/api/deals?${params}`, {
           cache: 'no-store',
           signal: controller.signal,
         });
         if (!response.ok) throw new Error('Deal request failed');
         const result: DealCatalog = await response.json();
         if (!controller.signal.aborted) {
-          const batchStep = advanceBatch ? 1 : 0;
-          advanceBatch = false;
-          setNow(Date.now());
+          const checkedAt = Date.now();
+          const refreshedStores = scope === 'all' ? storeKeys : [scope];
           setFailed(false);
-          setCatalog((previous) => ({ ...result, batch: (previous?.batch ?? 0) + batchStep }));
+          setCatalog((previous) => {
+            const next = { ...previous };
+            for (const key of refreshedStores) {
+              const unavailable = key === 'steam' ? result.steamUnavailable
+                : key === 'microsoft' && result.microsoftUnavailable === true;
+              next[key] = {
+                deals: unavailable && previous?.[key]
+                  ? previous[key].deals
+                  : result.deals.filter((deal) => deal.store === key),
+                batch: (previous?.[key]?.batch ?? 0) + (advanceBatch && !unavailable ? 1 : 0),
+                unavailable,
+                checkedAt,
+              };
+            }
+            return next;
+          });
         }
       } catch {
         if (!controller.signal.aborted) setFailed(true);
       } finally {
         if (!controller.signal.aborted) {
-          timer = setTimeout(loadDeals, refreshInterval);
+          timer = setTimeout(() => { void loadDeals('all', false); }, refreshInterval);
           setLoading(false);
         }
       }
     }
 
-    void loadDeals();
+    void loadDeals(refresh?.store ?? 'all', refresh !== null);
     return () => {
       controller.abort();
       clearTimeout(timer);
     };
-  }, [attempt]);
+  }, [refresh]);
 
-  const visibleStores = (Object.keys(stores) as Store[]).filter((key) => store === 'all' || key === store);
+  const visibleStores = storeKeys.filter((key) => store === 'all' || key === store);
 
   return (
     <section className="deals" aria-labelledby="deals-heading">
@@ -107,7 +127,7 @@ export function Deals() {
         <button disabled={loading} onClick={() => {
           setLoading(true);
           setFailed(false);
-          setAttempt((current) => current + 1);
+          setRefresh({ store });
         }}>↻ 새로고침</button>
       </div>
       {loading && <p role="status">할인 목록을 불러오는 중입니다.</p>}
@@ -115,14 +135,15 @@ export function Deals() {
         ? '새로고침에 실패했습니다. 마지막으로 불러온 목록을 표시합니다.'
         : '할인 목록을 불러오지 못했습니다.'}</p>}
       {catalog && visibleStores.map((key) => {
-        const items = catalog.deals.filter((deal) =>
-          deal.store === key && (!deal.ends_at || Date.parse(deal.ends_at) > now));
+        const current = catalog[key];
+        if (!current) return null;
+        const items = current.deals.filter((deal) =>
+          !deal.ends_at || Date.parse(deal.ends_at) > current.checkedAt);
         const hasLiveCatalog = key === 'steam' || key === 'microsoft';
-        const unavailable = key === 'steam' ? catalog.steamUnavailable
-          : key === 'microsoft' && catalog.microsoftUnavailable;
+        const { unavailable } = current;
         const size = hasLiveCatalog ? 20 : 5;
         const batchCount = Math.max(1, Math.ceil(items.length / size));
-        const batch = catalog.batch % batchCount;
+        const batch = current.batch % batchCount;
         const visible = items.slice(batch * size, (batch + 1) * size);
 
         return (
