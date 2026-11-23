@@ -1,3 +1,4 @@
+import { getMicrosoftDeals } from './microsoft-deals.js';
 import { createTodayMatches } from './esports-today.js';
 import { createGameNewsCache } from './game-news.js';
 import express from 'express';
@@ -57,14 +58,21 @@ app.get('/api/deals', async (request, response) => {
 
   if (request.query.catalog !== '1') return response.json(data);
 
-  const otherDeals = data.filter((deal) => deal.store !== 'steam');
-  try {
-    const steamDeals = await getSteamDeals();
-    return response.json({ deals: [...steamDeals, ...otherDeals], steamUnavailable: false });
-  } catch (steamError) {
-    console.warn('Steam discounts lookup failed:', steamError.message);
-    return response.json({ deals: otherDeals, steamUnavailable: true });
-  }
+  const [steam, microsoft] = await Promise.allSettled([getSteamDeals(), getMicrosoftDeals()]);
+  if (steam.status === 'rejected') console.warn('Steam discounts lookup failed:', steam.reason.message);
+  if (microsoft.status === 'rejected') console.warn('Microsoft Store discounts lookup failed:', microsoft.reason.message);
+
+  const otherDeals = data.filter((deal) =>
+    deal.store !== 'steam' && (deal.store !== 'microsoft' || microsoft.status === 'rejected'));
+  return response.json({
+    deals: [
+      ...(steam.status === 'fulfilled' ? steam.value : []),
+      ...(microsoft.status === 'fulfilled' ? microsoft.value : []),
+      ...otherDeals,
+    ],
+    steamUnavailable: steam.status === 'rejected',
+    microsoftUnavailable: microsoft.status === 'rejected',
+  });
 });
 
 app.get('/api/news', async (_request, response) => {

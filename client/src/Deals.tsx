@@ -22,6 +22,12 @@ type Deal = {
   product_url: string;
 };
 
+type DealCatalog = {
+  deals: Deal[];
+  steamUnavailable: boolean;
+  microsoftUnavailable?: boolean;
+};
+
 const refreshInterval = 24 * 60 * 60 * 1000;
 
 const won = new Intl.NumberFormat('ko-KR');
@@ -37,7 +43,7 @@ const offerLabels = {
 };
 
 export function Deals() {
-  const [catalog, setCatalog] = useState<{ deals: Deal[]; steamUnavailable: boolean; batch: number } | null>(null);
+  const [catalog, setCatalog] = useState<DealCatalog & { batch: number } | null>(null);
   const [store, setStore] = useState<Store | 'all'>('all');
   const [attempt, setAttempt] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -58,7 +64,7 @@ export function Deals() {
           signal: controller.signal,
         });
         if (!response.ok) throw new Error('Deal request failed');
-        const result: { deals: Deal[]; steamUnavailable: boolean } = await response.json();
+        const result: DealCatalog = await response.json();
         if (!controller.signal.aborted) {
           const batchStep = advanceBatch ? 1 : 0;
           advanceBatch = false;
@@ -111,7 +117,10 @@ export function Deals() {
       {catalog && visibleStores.map((key) => {
         const items = catalog.deals.filter((deal) =>
           deal.store === key && (!deal.ends_at || Date.parse(deal.ends_at) > now));
-        const size = key === 'steam' ? 20 : 5;
+        const hasLiveCatalog = key === 'steam' || key === 'microsoft';
+        const unavailable = key === 'steam' ? catalog.steamUnavailable
+          : key === 'microsoft' && catalog.microsoftUnavailable;
+        const size = hasLiveCatalog ? 20 : 5;
         const batchCount = Math.max(1, Math.ceil(items.length / size));
         const batch = catalog.batch % batchCount;
         const visible = items.slice(batch * size, (batch + 1) * size);
@@ -119,11 +128,11 @@ export function Deals() {
         return (
           <section className="deal-store" key={key} aria-labelledby={`deal-store-${key}`}>
             <h3 id={`deal-store-${key}`}>{stores[key]}</h3>
-            {key === 'steam' && catalog.steamUnavailable && (
-              <p role="status">Steam 최신 할인 목록을 가져오지 못했습니다.</p>
+            {unavailable && (
+              <p role="status">{stores[key]} 최신 할인 목록을 가져오지 못했습니다.</p>
             )}
-            {visible.length === 0 && (key !== 'steam' || !catalog.steamUnavailable) && (
-              <p>{key === 'steam' ? '진행 중인 할인·프로모션이 없습니다.' : '등록된 할인·프로모션이 없습니다.'}</p>
+            {visible.length === 0 && !unavailable && (
+              <p>{hasLiveCatalog ? '진행 중인 할인·프로모션이 없습니다.' : '등록된 할인·프로모션이 없습니다.'}</p>
             )}
             {visible.length > 0 && (
               <ul key={batch} className="deal-list" aria-label={`${stores[key]} 할인 상품`} tabIndex={0}>
