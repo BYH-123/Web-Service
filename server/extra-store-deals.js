@@ -81,9 +81,30 @@ function battleNetDeals($) {
   });
 }
 
+async function loadStorePage(url) {
+  const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
+  if (!response.ok) throw new Error(`Store HTTP ${response.status}`);
+  return load(await response.text());
+}
+
+async function loadEpicDiscounts(url) {
+  const $ = await loadStorePage(url);
+  // Follow the official specials page's discounted catalog in the Korean storefront.
+  const catalog = $('a[href]').toArray()
+    .map((element) => URL.parse($(element).attr('href'), url))
+    .find((link) => link?.origin === 'https://store.epicgames.com' &&
+      ['/browse', '/ko/browse'].includes(link.pathname) &&
+      link.searchParams.get('priceTier') === 'tierDiscouted');
+  if (!catalog) throw new Error('Epic Games Store specials catalog link is missing');
+
+  catalog.pathname = '/ko/browse';
+  return loadStorePage(catalog.href);
+}
+
 export const extraDealSources = {
   epic: {
-    url: 'https://store.epicgames.com/ko/browse?sortBy=releaseDate&sortDir=DESC&priceTier=tierDiscouted&count=20&start=0',
+    url: 'https://store.epicgames.com/sales-and-specials/?lang=ko',
+    loadPage: loadEpicDiscounts,
     parse: epicDeals,
   },
   ea: { url: 'https://www.ea.com/ko/sales/black-friday-sale-2026', parse: eaDeals },
@@ -104,14 +125,12 @@ export async function getExtraStoreDeals(store) {
   const request = pending.get(store);
   if (request) return request;
 
-  const { url, parse } = extraDealSources[store];
+  const { url, parse, loadPage = loadStorePage } = extraDealSources[store];
   async function refresh() {
-    const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
-    if (!response.ok) throw new Error(`Store HTTP ${response.status}`);
-
+    const page = await loadPage(url);
     const unique = new Map();
     const checkedAt = new Date().toISOString();
-    for (const entry of parse(load(await response.text()))) {
+    for (const entry of parse(page)) {
       if (unique.has(entry.product_id)) continue;
       unique.set(entry.product_id, { ...entry, checked_at: checkedAt });
       if (unique.size === resultLimit) break;
