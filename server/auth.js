@@ -23,7 +23,12 @@ export function mountAuth(app) {
     const clientSecret = env[key + '_CLIENT_SECRET'];
     if (clientId && clientSecret) socialProviders[provider] = { clientId, clientSecret };
   }
-  const pool = new pg.Pool({ connectionString: env.AUTH_DATABASE_URL, options: '-c search_path=game_auth' });
+  const pool = new pg.Pool({
+    connectionString: env.AUTH_DATABASE_URL,
+    onConnect: async (client) => {
+      await client.query('SET search_path TO game_auth');
+    },
+  });
   pool.on('error', () => console.error('회원 DB 연결이 종료되었습니다.'));
   const auth = betterAuth({
     baseURL,
