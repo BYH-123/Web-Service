@@ -69,3 +69,27 @@ Steam 목록을 읽는 데 필요한 패키지를 설치하려면 `server` 폴�
 PandaScore에 등록된 CS2, 리그 오브 레전드, 배틀그라운드 일정을 사용하며 제공되는 공식
 YouTube 영상이나 Twitch 채널은 카드 안에서 재생할 수 있습니다.
 해당 경기 일정이 없거나 수집할 수 없으면 Supabase 추천 대회 목록을 표시합니다.
+
+## 회원 로그인 설정
+
+1. Supabase SQL Editor에서 `server/game-auth.sql`을 실행합니다. 인증 데이터는 별도 스키마 `game_auth`에 보관합니다. Supabase Data API의 노출 스키마에는 추가하지 않습니다.
+2. `server/.env`에 아래 환경 변수를 설정합니다. AUTH_DATABASE_URL은 위 스키마에 접근 가능한 PostgreSQL 직접 연결 문자열입니다. Supabase Connect의 Direct connection을 사용하고 비밀번호의 특수문자는 URL 인코딩합니다. 원격 DB는 TLS를 사용합니다.
+3. Google Cloud의 웹 애플리케이션 OAuth 클라이언트와 네이버 개발자센터의 웹 애플리케이션에 각각 아래 콜백 주소를 등록합니다. 네이버 서비스 URL은 `http://localhost:5173`이며 회원 이메일을 제공 항목에 포함합니다.
+4. `server`에서 `npm.cmd install`, `npm.cmd start`를 실행하고 `client`에서 `npm.cmd install`, `npm.cmd run dev`를 실행합니다. 브라우저에서 `http://localhost:5173`을 엽니다. 배포 시 사이트와 /api를 동일 출처로 제공하고 URL과 콜백을 실제 HTTPS 주소로 변경합니다.
+
+```dotenv
+BETTER_AUTH_URL=http://localhost:5173
+BETTER_AUTH_SECRET=<32바이트 이상의 임의 비밀값>
+AUTH_DATABASE_URL=<PostgreSQL 연결 문자열>
+GOOGLE_CLIENT_ID=<구글 클라이언트 ID>
+GOOGLE_CLIENT_SECRET=<구글 클라이언트 시크릿>
+NAVER_CLIENT_ID=<네이버 클라이언트 ID>
+NAVER_CLIENT_SECRET=<네이버 클라이언트 시크릿>
+```
+
+비밀값은 로컬에서 `node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"`로 생성합니다.
+
+- 구글 콜백은 `http://localhost:5173/api/auth/callback/google`입니다.
+- 네이버 콜백은 `http://localhost:5173/api/auth/callback/naver`입니다.
+- 자체 가입은 이메일·비밀번호·닉네임을 사용합니다. 현재 이메일 소유 확인 메일은 발송하지 않으며 동일 이메일을 근거로 다른 로그인 수단을 자동 연결하지 않습니다.
+- 현재 회원은 `GET /api/auth/get-session`에서 확인합니다. 이후 개인화 API에서도 서버가 세션의 사용자 ID를 확인해야 합니다.

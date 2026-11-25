@@ -2,6 +2,7 @@ import { getExtraStoreDeals } from './extra-store-deals.js';
 import { getMicrosoftDeals } from './microsoft-deals.js';
 import { createTodayMatches } from './esports-today.js';
 import { createGameNewsCache } from './game-news.js';
+import { mountAuth } from './auth.js';
 import express from 'express';
 import { getSteamDeals } from './steam-deals.js';
 import { createClient } from '@supabase/supabase-js';
@@ -18,6 +19,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
 });
 
 const app = express();
+mountAuth(app);
 const gameNews = createGameNewsCache();
 const todayMatches = createTodayMatches(process.env.PANDASCORE_API_TOKEN);
 

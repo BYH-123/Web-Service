@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { Deals } from './Deals';
 import { IndustryNews } from './IndustryNews';
 import { EsportsEvents } from './EsportsEvents';
+import { Account } from './Account';
 import './style.css';
 
 type Game = {
@@ -76,6 +77,7 @@ function App() {
 
   return (
     <main>
+      <Account />
       <h1>출시 예정 게임</h1>
       {list.status === 'loading' && <p role="status">게임 목록을 불러오는 중입니다.</p>}
       {list.status === 'error' && (

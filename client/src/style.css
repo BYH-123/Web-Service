@@ -74,3 +74,7 @@ h1 { line-height: 1.2; }
   aspect-ratio: 16 / 9;
   border: 0;
 }
+
+.account form { display: grid; gap: .65rem; max-width: 22rem; margin-bottom: 1rem; }
+.account label { display: grid; }
+.account input, .account button { font: inherit; padding: .35rem .65rem; }
