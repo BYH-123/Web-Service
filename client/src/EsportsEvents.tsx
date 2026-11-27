@@ -6,6 +6,7 @@ type EsportsEvent = {
   title: string;
   starts_at: string;
   event_url: string | null;
+  live?: boolean;
   kind?: 'match';
   watch_url: string | null;
 };
@@ -25,15 +26,15 @@ function streamEmbed(watchUrl: string | null) {
   const youtubeId = url.hostname === 'youtu.be'
     ? url.pathname.slice(1)
     : ['www.youtube.com', 'youtube.com'].includes(url.hostname)
-      ? url.searchParams.get('v') ?? url.pathname.match(/^\/live\/([^/]+)$/)?.[1]
+      ? url.searchParams.get('v') ?? url.pathname.match(/^\/(?:live|embed)\/([^/]+)$/)?.[1]
       : null;
   if (youtubeId && /^[\w-]{11}$/.test(youtubeId)) {
-    return `https://www.youtube-nocookie.com/embed/${youtubeId}`;
+    return `https://www.youtube-nocookie.com/embed/${youtubeId}?autoplay=1&mute=1`;
   }
   if (['www.twitch.tv', 'twitch.tv'].includes(url.hostname)) {
     const channel = url.pathname.match(/^\/([a-z0-9_]+)\/?$/i)?.[1];
     if (channel) {
-      const query = new URLSearchParams({ channel, parent: window.location.hostname, autoplay: 'false' });
+      const query = new URLSearchParams({ channel, parent: window.location.hostname, autoplay: 'true', muted: 'true' });
       return `https://player.twitch.tv/?${query}`;
     }
   }
@@ -42,7 +43,7 @@ function streamEmbed(watchUrl: string | null) {
 
 export function EsportsEvents() {
   const [events, setEvents] = useState<EsportsEvent[] | null>(null);
-  const [index, setIndex] = useState(0);
+  const [selected, setSelected] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
 
@@ -57,9 +58,7 @@ export function EsportsEvents() {
         const result: EsportsEvent[] = await response.json();
         if (!controller.signal.aborted) {
           setEvents(result);
-          const latestStarted = result.reduce((selected, match, position) =>
-            match.kind === 'match' && Date.parse(match.starts_at) <= Date.now() ? position : selected, 0);
-          setIndex(latestStarted);
+          setSelected(previous => result.some(match => match.slug === previous) ? previous : null);
           setFailed(false);
         }
       } catch {
@@ -68,7 +67,7 @@ export function EsportsEvents() {
         if (!controller.signal.aborted) {
           const currentTime = Date.now();
           const nextCheck = dayMs - (currentTime + koreaOffsetMs) % dayMs;
-          timer = setTimeout(loadEvents, nextCheck);
+          timer = setTimeout(loadEvents, Math.min(60_000, nextCheck));
         }
       }
     }
@@ -80,9 +79,14 @@ export function EsportsEvents() {
     };
   }, [attempt]);
 
-  const event = events?.[index];
+  const event = events?.find(match => match.slug === selected)
+    ?? events?.find(match => match.live && streamEmbed(match.watch_url))
+    ?? events?.find(match => match.live)
+    ?? events?.find(match => Date.parse(match.starts_at) >= Date.now())
+    ?? events?.[0];
+  const index = event && events ? events.indexOf(event) : 0;
   const todayMatch = event?.kind === 'match';
-  const player = todayMatch ? streamEmbed(event.watch_url) : null;
+  const player = event?.live ? streamEmbed(event.watch_url) : null;
 
   return (
     <section className="esports" aria-labelledby="esports-heading">
@@ -101,13 +105,14 @@ export function EsportsEvents() {
       {event && events && (
         <>
           <div aria-live="polite" className="game">
-            <p>{todayMatch ? '오늘 경기 · ' : ''}{event.game}</p>
+            <p>{event.live ? '진행 중 · ' : todayMatch ? '오늘 경기 · ' : ''}{event.game}</p>
             <h3>{event.title}</h3>
             <p>시작 <time dateTime={event.starts_at}>{dateTime.format(new Date(event.starts_at))}</time> (KST)</p>
             {player && (
-              <iframe className="esports-player" src={player} title={`${event.title} 중계`}
-                loading="lazy" allowFullScreen />
+              <iframe key={event.slug} allow="autoplay; fullscreen" className="esports-player" src={player} title={`${event.title} 중계`}
+                allowFullScreen />
             )}
+            {event.live && !player && <p>{event.watch_url ? '아래 중계 채널에서 시청할 수 있습니다.' : '공식 중계 링크가 아직 없습니다.'}</p>}
             {(event.watch_url ?? event.event_url) && (
               <a href={event.watch_url ?? event.event_url ?? undefined} target="_blank" rel="noopener noreferrer">
                 {event.watch_url ? (todayMatch ? '중계 채널 보기' : '공식 중계 안내') : '공식 대회 일정'} ↗
@@ -116,9 +121,11 @@ export function EsportsEvents() {
           </div>
           {events.length > 1 && (
             <div className="esports-controls">
-              <button type="button" aria-label="이전 대회" onClick={() => setIndex((current) => (current + events.length - 1) % events.length)}>←</button>
-              <span aria-live="polite">{index + 1} / {events.length}</span>
-              <button type="button" aria-label="다음 대회" onClick={() => setIndex((current) => (current + 1) % events.length)}>→</button>
+              <button type="button" aria-label="이전 대회" onClick={() => setSelected(events[(index + events.length - 1) % events.length].slug)}>←</button>
+              <select aria-label="시청할 경기" value={event.slug} onChange={e => setSelected(e.target.value)}>
+                {events.map(match => <option key={match.slug} value={match.slug}>{match.live ? '진행 중 · ' : ''}{match.game} · {match.title}</option>)}
+              </select>
+              <button type="button" aria-label="다음 대회" onClick={() => setSelected(events[(index + 1) % events.length].slug)}>→</button>
             </div>
           )}
         </>
