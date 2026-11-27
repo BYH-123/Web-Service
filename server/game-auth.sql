@@ -32,4 +32,9 @@ create table if not exists verification (
 );
 create index if not exists verification_identifier_idx on verification (identifier);
 revoke all on all tables in schema game_auth from public, anon, authenticated;
+create table if not exists game_auth.upcoming_preferences (
+  user_id text primary key references game_auth."user"(id) on delete cascade,
+  cards jsonb not null default '{}'
+);
+revoke all on game_auth.upcoming_preferences from public, anon, authenticated;
 commit;
