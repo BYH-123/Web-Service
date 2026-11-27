@@ -62,5 +62,19 @@ export function mountAuth(app) {
     rateLimit: { enabled: true },
     socialProviders,
   });
-  app.all('/api/auth/*splat', toNodeHandler(auth));
+  app.all('/api/auth/*splat', toNodeHandler(async (request) => {
+    const response = await auth.handler(request);
+    const cookies = response.headers.getSetCookie();
+    if (!cookies.length) return response;
+    const headers = new Headers(response.headers);
+    headers.delete('set-cookie');
+    for (let cookie of cookies) {
+      // Leave expired logout cookies intact so the browser removes them immediately.
+      if (/^(?:__Secure-)?better-auth\.session_token=[^;]/.test(cookie)) {
+        cookie = cookie.replace(/;\s*(?:Max-Age|Expires)=[^;]*/gi, '');
+      }
+      headers.append('set-cookie', cookie);
+    }
+    return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+  }));
 }
