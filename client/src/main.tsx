@@ -51,7 +51,13 @@ function MyUpcomingGames() {
     try {
       const res = await fetch('/api/me/upcoming-games/' + key, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(choice ?? {reset:true})});
       if (!res.ok) {
-        setMessage(res.status === 409 ? '관심작은 최대 5칸까지 저장할 수 있습니다. 기존 게임을 삭제한 후 추가해 주세요.' : res.status === 401 ? '다시 로그인해 주세요.' : '저장하지 못했습니다. 입력한 정보를 확인해 주세요.');
+        const errors: Record<number, string> = {
+          400: '게임 이름(1~120자), 출시일, https:// 링크를 확인해 주세요. 이름만 입력해도 이 오류가 뜨면 서버를 최신 버전으로 재시작해 주세요.',
+          401: '다시 로그인해 주세요.',
+          404: '게임 저장 API를 찾지 못했습니다. 서버 버전을 확인해 주세요.',
+          409: '관심작은 최대 5개까지 저장할 수 있습니다. 기존 게임을 삭제한 후 추가해 주세요.',
+        };
+        setMessage(`저장 실패 (HTTP ${res.status}). ${errors[res.status] ?? '서버 터미널에서 같은 시각의 오류를 확인해 주세요.'}`);
         return;
       }
       setCards(previous => {
