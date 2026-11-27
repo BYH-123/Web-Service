@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
+import type { FormEvent } from 'react';
 
 type EsportsEvent = {
   slug: string;
@@ -24,21 +25,25 @@ const koreaOffsetMs = 9 * 60 * 60 * 1000;
 
 function streamEmbed(watchUrl: string | null) {
   if (!watchUrl) return null;
-  const url = new URL(watchUrl);
+  const url = URL.canParse(watchUrl) ? new URL(watchUrl) : null;
+  if (!url || !['https:', 'http:'].includes(url.protocol) || url.username || url.password) return null;
+
   const youtubeId = url.hostname === 'youtu.be'
-    ? url.pathname.slice(1)
+    ? url.pathname.match(/^\/([^/]+)\/?$/)?.[1]
     : ['www.youtube.com', 'youtube.com', 'm.youtube.com'].includes(url.hostname)
-      ? url.searchParams.get('v') ?? url.pathname.match(/^\/(?:live|embed)\/([^/]+)$/)?.[1]
+      ? url.searchParams.get('v') ?? url.pathname.match(/^\/(?:live|embed|shorts)\/([^/]+)\/?$/)?.[1]
       : null;
   if (youtubeId && /^[\w-]{11}$/.test(youtubeId)) {
     return `https://www.youtube-nocookie.com/embed/${youtubeId}?autoplay=1&mute=1&enablejsapi=1&origin=${encodeURIComponent(location.origin)}`;
   }
   if (['www.twitch.tv', 'twitch.tv'].includes(url.hostname)) {
     const channel = url.pathname.match(/^\/([a-z0-9_]+)\/?$/i)?.[1];
-    if (channel) {
-      const query = new URLSearchParams({ channel, parent: window.location.hostname, autoplay: 'true', muted: 'true' });
-      return `https://player.twitch.tv/?${query}`;
-    }
+    const video = url.pathname.match(/^\/videos\/(\d+)\/?$/)?.[1];
+    if (!channel && !video) return null;
+    const query = new URLSearchParams({ parent: window.location.hostname, autoplay: 'true', muted: 'true' });
+    if (video) query.set('video', `v${video}`);
+    else if (channel) query.set('channel', channel);
+    return `https://player.twitch.tv/?${query}`;
   }
   return null;
 }
@@ -83,7 +88,41 @@ function Broadcast({event}: {event: EsportsEvent}) {
   </>;
 }
 
-export function EsportsEvents() {
+function BroadcastPreview() {
+  const [preview, setPreview] = useState<{ url: string; embed: string } | null>(null);
+  const [error, setError] = useState(false);
+
+  function play(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const url = String(new FormData(event.currentTarget).get('broadcastUrl') ?? '').trim();
+    const embed = streamEmbed(url);
+    setPreview(embed ? { url, embed } : null);
+    setError(!embed);
+  }
+
+  return (
+    <section className="game broadcast-preview" aria-labelledby="broadcast-preview-heading">
+      <h3 id="broadcast-preview-heading">방송 재생 테스트</h3>
+      <form onSubmit={play}>
+        <label htmlFor="broadcast-preview-url">방송 URL</label>
+        <p id="broadcast-preview-help">YouTube 영상·라이브 또는 Twitch 채널·다시보기 링크를 입력하세요.</p>
+        <div className="broadcast-preview-controls">
+          <input id="broadcast-preview-url" name="broadcastUrl" type="url" placeholder="https://…" aria-describedby="broadcast-preview-help" required />
+          <button type="submit">재생</button>
+        </div>
+      </form>
+      {error && <p role="alert">지원하는 형식의 YouTube 또는 Twitch 링크를 입력해 주세요.</p>}
+      {preview && (
+        <>
+          <iframe key={preview.embed} className="esports-player" src={preview.embed} title="입력한 방송" allow="autoplay; fullscreen" allowFullScreen />
+          <p>플레이어에서 재생할 수 없으면 <a href={preview.url} target="_blank" rel="noopener noreferrer">원본에서 보기 ↗</a></p>
+        </>
+      )}
+    </section>
+  );
+}
+
+export function EsportsEvents({ member }: { member: string | null }) {
   const [events, setEvents] = useState<EsportsEvent[] | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
@@ -165,6 +204,7 @@ export function EsportsEvents() {
           )}
         </>
       )}
+      {member && <BroadcastPreview key={member} />}
     </section>
   );
 }

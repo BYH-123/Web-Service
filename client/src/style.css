@@ -58,6 +58,13 @@ h1 { line-height: 1.2; }
 .esports-controls { display: flex; align-items: center; gap: .75rem; margin-top: .75rem; }
 .esports-controls button { font: inherit; min-width: 2.75rem; min-height: 2.75rem; }
 
+.broadcast-preview { margin-top: 1rem; }
+.broadcast-preview form { display: grid; gap: .35rem; width: min(100%, 34rem); }
+.broadcast-preview-controls { display: flex; gap: .5rem; }
+.broadcast-preview-controls input, .broadcast-preview-controls button { font: inherit; padding: .35rem .65rem; }
+.broadcast-preview-controls input { flex: 1; min-width: 0; }
+.broadcast-preview-controls button { flex-shrink: 0; }
+
 .news-preview {
   color: #536176;
   font-size: .875rem;

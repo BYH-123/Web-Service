@@ -191,7 +191,7 @@ function App() {
       )}
       {member && <MyUpcomingGames key={member} />}
       <Deals />
-      <EsportsEvents />
+      <EsportsEvents member={member} />
       <IndustryNews />
     </main>
   );
