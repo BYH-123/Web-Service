@@ -6,7 +6,7 @@ import { mountAuth } from './auth.js';
 import express from 'express';
 import { getSteamDeals } from './steam-deals.js';
 import { createClient } from '@supabase/supabase-js';
-import { startSteamReleaseDateSync } from './sync-steam-release-dates.js';
+import { parseSteamReleaseDate, startSteamReleaseDateSync } from './sync-steam-release-dates.js';
 
 const { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, PORT = 3000 } = process.env;
 
@@ -22,6 +22,30 @@ const app = express();
 mountAuth(app);
 const gameNews = createGameNewsCache();
 const todayMatches = createTodayMatches(process.env.PANDASCORE_API_TOKEN);
+
+// Cache store checks across cards and coalesce simultaneous requests.
+const steamStatus = new Map();
+app.get('/api/release-status/:id', async (req, res) => {
+  const { id } = req.params;
+  if (!/^[1-9]\d{0,9}$/.test(id)) return res.sendStatus(400);
+  const now = Date.now();
+  let entry = steamStatus.get(id);
+  if (!entry || entry.until <= now) {
+    for (const [key, value] of steamStatus) if (value.until <= now) steamStatus.delete(key);
+    if (steamStatus.size >= 1000) return res.sendStatus(429);
+    const pending = fetch('https://store.steampowered.com/api/appdetails?appids=' + id + '&filters=release_date&cc=KR&l=english',
+      { signal: AbortSignal.timeout(5000), redirect: 'error' }).then(async response => {
+      if (!response.ok) throw new Error();
+      const release = (await response.json())[id]?.data?.release_date;
+      if (typeof release?.coming_soon !== 'boolean') throw new Error();
+      return { released: !release.coming_soon, date: parseSteamReleaseDate(release.date) };
+    });
+    entry = { pending, until: now + 3600000 };
+    steamStatus.set(id, entry);
+  }
+  try { res.json(await entry.pending); }
+  catch { entry.until = Math.min(entry.until, now + 60000); res.sendStatus(503); }
+});
 
 app.get('/api/upcoming-games', async (_request, response) => {
   response.set('Cache-Control', 'no-store');
