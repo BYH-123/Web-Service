@@ -6,6 +6,7 @@ type EsportsEvent = {
   title: string;
   starts_at: string;
   event_url: string | null;
+  broadcast_available?: boolean;
   streams?: string[];
   live?: boolean;
   kind?: 'match';
@@ -123,6 +124,7 @@ export function EsportsEvents() {
   const event = events?.find(match => match.slug === selected)
     ?? events?.find(match => match.live && (match.streams ?? [match.watch_url]).some(url => streamEmbed(url)))
     ?? events?.find(match => match.live)
+    ?? events?.find(match => match.broadcast_available)
     ?? events?.find(match => Date.parse(match.starts_at) >= Date.now())
     ?? events?.[0];
   const index = event && events ? events.indexOf(event) : 0;
@@ -149,7 +151,7 @@ export function EsportsEvents() {
             <p>{event.live ? '진행 중 · ' : todayMatch ? '오늘 경기 · ' : ''}{event.game}</p>
             <h3>{event.title}</h3>
             <p>시작 <time dateTime={event.starts_at}>{dateTime.format(new Date(event.starts_at))}</time> (KST)</p>
-            {event.live ? <Broadcast key={event.slug} event={event} /> :
+            {(event.live || event.broadcast_available) ? <Broadcast key={event.slug} event={event} /> :
               (event.watch_url ?? event.event_url) && <a href={(event.watch_url ?? event.event_url)!} target="_blank" rel="noopener noreferrer">공식 중계 안내 ↗</a>}
           </div>
           {events.length > 1 && (
