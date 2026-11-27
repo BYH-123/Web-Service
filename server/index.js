@@ -147,10 +147,36 @@ app.get('/api/news', async (_request, response) => {
   return response.json(data);
 });
 
+// Match-specific PGL feed for November 27 (KST), including replay after the stream ends.
+const pglMatchBroadcast = {
+  slug: 'pgl-singapore-m80-100-thieves',
+  game: 'CS2',
+  title: 'M80 vs. 100 Thieves',
+  starts_at: '2026-11-27T20:00:00+09:00',
+  event_url: 'https://www.pglesports.com/cs2/pgl-major-singapore-2026/',
+  watch_url: 'https://www.youtube.com/watch?v=JRQtOvSfPZ8',
+  kind: 'match',
+  broadcast_available: true,
+};
+
 app.get('/api/esports-events', async (request, response) => {
   response.set('Cache-Control', 'no-store');
   if (request.query.today === '1') {
     const matches = await todayMatches.getMatches();
+    const now = Date.now();
+    const broadcastDay = now >= Date.parse('2026-11-27T20:00:00+09:00') &&
+      now < Date.parse('2026-11-28T00:00:00+09:00');
+    if (broadcastDay) {
+      const match = matches.find(event => event.game === 'CS2' &&
+        /\bm80\b/i.test(event.title) && /\b100\s*thieves\b/i.test(event.title));
+      const featured = match ? {
+        ...match,
+        broadcast_available: true,
+        streams: [...new Set([pglMatchBroadcast.watch_url, ...(match.streams ?? [])])],
+        watch_url: pglMatchBroadcast.watch_url,
+      } : pglMatchBroadcast;
+      return response.json([featured, ...matches.filter(event => event !== match)]);
+    }
     if (matches.length) return response.json(matches);
   }
   const { data, error } = await supabase
