@@ -30,14 +30,13 @@ const koreanDate = new Intl.DateTimeFormat('ko-KR', {
 
 type Choice = { title: string; date: string; link: string };
 
-function UpcomingCards({ games, member }: { games: Game[]; member: string | null }) {
+function MyUpcomingGames() {
   const [cards, setCards] = useState<Record<string, Choice>>({});
   const [ready, setReady] = useState(false);
   const [editing, setEditing] = useState('');
   const [message, setMessage] = useState('');
   const [saving, setSaving] = useState(false);
   useEffect(() => {
-    if (!member) return;
     const controller = new AbortController();
     fetch('/api/me/upcoming-games', {signal: controller.signal}).then(async res => {
       if (!res.ok) throw new Error();
@@ -45,14 +44,14 @@ function UpcomingCards({ games, member }: { games: Game[]; member: string | null
       if (!controller.signal.aborted) { setCards(data); setReady(true); }
     }).catch(() => { if (!controller.signal.aborted) setMessage('내 게임을 불러오지 못했습니다. 새로고침해 주세요.'); });
     return () => controller.abort();
-  }, [member]);
+  }, []);
 
   async function save(key: string, choice: Choice | null) {
     setSaving(true); setMessage('');
     try {
       const res = await fetch('/api/me/upcoming-games/' + key, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(choice ?? {reset:true})});
       if (!res.ok) {
-        setMessage(res.status === 409 ? '관심작은 최대 5칸까지 저장할 수 있습니다. 다른 칸을 기본 추천으로 복원해 주세요.' : res.status === 401 ? '다시 로그인해 주세요.' : '저장하지 못했습니다. 입력한 정보를 확인해 주세요.');
+        setMessage(res.status === 409 ? '관심작은 최대 5칸까지 저장할 수 있습니다. 기존 게임을 삭제한 후 추가해 주세요.' : res.status === 401 ? '다시 로그인해 주세요.' : '저장하지 못했습니다. 입력한 정보를 확인해 주세요.');
         return;
       }
       setCards(previous => {
@@ -64,37 +63,53 @@ function UpcomingCards({ games, member }: { games: Game[]; member: string | null
     } catch { setMessage('서버에 연결하지 못했습니다. 다시 시도해 주세요.'); }
     finally { setSaving(false); }
   }
-  return <>
+  const entries = Object.entries(cards);
+  return <section aria-label="내가 기대하는 출시 예정 게임">
+    <h2>내가 기대하는 출시 예정 게임</h2>
     {message && <p role="alert">{message}</p>}
-    {(['global','kr'] as const).map(area => <section key={area}>
-      <h2>{area === 'global' ? '글로벌 추천' : '국내 추천'}</h2>
-      <ul className="games">{[1,2,3].map(slot => {
-        const key = area + '-' + slot;
-        const game = games.find(g => g.audience === area && g.slot === slot);
-        const custom = cards[key];
-        if (!game && !member) return null;
-        const link = custom ? custom.link : game?.source_url;
-        return <li key={slot} className="game">
-          <h3>{custom?.title ?? game?.title ?? '빈 추천 칸'}</h3>
-          {custom ? <p>{custom.date || '출시일 미정'}</p> : game?.releases.length ? game.releases.map(r => <p key={r.platform}>{r.platform} · {r.release_date ? koreanDate.format(new Date(r.release_date)) : r.release_year ? r.release_year + '년 예정' : '출시일 미정'}</p>) : game && <p>출시일 미정</p>}
-          {link && <a href={link} target="_blank" rel="noopener noreferrer">출처 보기</a>}
-          {ready && (editing === key ? <form onSubmit={event => {
+    {ready && <>
+      <p>{entries.length} / 5개 등록</p>
+      <ul className="games">{entries.map(([key, game]) => <li className="game" key={key}>
+        <h3>{game.title}</h3>
+        <p>{game.date || '출시일 미정'}</p>
+        {game.link && <a href={game.link} target="_blank" rel="noopener noreferrer">공식 링크</a>}
+        <div className="deal-controls">
+          <button disabled={!!editing || saving} onClick={() => setEditing(key)}>수정</button>
+          <button disabled={!!editing || saving} onClick={() => save(key, null)}>삭제</button>
+        </div>
+      </li>)}</ul>
+      {editing ? <div key={editing} className="account">
+        <h3>{cards[editing] ? '게임 수정' : '게임 추가'}</h3>
+        <form onSubmit={event => {
             event.preventDefault();
             const data = new FormData(event.currentTarget);
-            void save(key,{title:String(data.get('title')).trim(),date:String(data.get('date')),link:String(data.get('link')).trim()});
+            void save(editing,{title:String(data.get('title')).trim(),date:String(data.get('date')),link:String(data.get('link')).trim()});
           }}>
-            <label>게임 이름 <input name="title" required maxLength={120} defaultValue={custom?.title} autoFocus /></label>
-            <label>출시일 (선택) <input name="date" type="date" defaultValue={custom?.date} /></label>
-            <label>공식 링크 (선택) <input name="link" type="url" pattern="https://.+" placeholder="https://" defaultValue={custom?.link} /></label>
+            <label>게임 이름 <input name="title" required maxLength={120} defaultValue={cards[editing]?.title} autoFocus /></label>
+            <label>출시일 (선택) <input name="date" type="date" defaultValue={cards[editing]?.date} /></label>
+            <label>공식 링크 (선택) <input name="link" type="url" pattern="https://.+" placeholder="https://" defaultValue={cards[editing]?.link} /></label>
             <button disabled={saving}>저장</button>
             <button type="button" disabled={saving} onClick={() => setEditing('')}>취소</button>
-            {custom && <button type="button" disabled={saving} onClick={() => save(key,null)}>기본 추천 복원</button>}
-          </form> : <button disabled={saving} onClick={() => {setEditing(key);setMessage('');}}>수정</button>)}
-        </li>;
-      })}</ul>
-      {!member && !games.some(g => g.audience === area) && <p>등록된 추천 게임이 없습니다.</p>}
-    </section>)}
-  </>;
+          </form>
+      </div> : <button disabled={saving || entries.length >= 5} onClick={() => setEditing(crypto.randomUUID())}>게임 추가</button>}
+    </>}
+  </section>;
+}
+
+function Recommendations({ games }: { games: Game[] }) {
+  return <>{(['global','kr'] as const).map(area => {
+    const group = games.filter(game => game.audience === area);
+    return <section key={area}>
+      <h2>{area === 'global' ? '글로벌 추천' : '국내 추천'}</h2>
+      {!group.length && <p>등록된 추천 게임이 없습니다.</p>}
+      <ul className="games">{group.map(game => <li className="game" key={game.slot}>
+        <h3>{game.title}</h3>
+        {!game.releases.length && <p>출시일 미정</p>}
+        {game.releases.map(r => <p key={r.platform}>{r.platform} · {r.release_date ? koreanDate.format(new Date(r.release_date)) : r.release_year ? r.release_year + '년 예정' : '출시일 미정'}</p>)}
+        <a href={game.source_url} target="_blank" rel="noopener noreferrer">출처 보기</a>
+      </li>)}</ul>
+    </section>;
+  })}</>;
 }
 
 function App() {
@@ -135,8 +150,9 @@ function App() {
         </div>
       )}
       {list.status === 'ready' && (
-        <UpcomingCards key={member ?? 'guest'} games={list.games} member={member} />
+        <Recommendations games={list.games} />
       )}
+      {member && <MyUpcomingGames key={member} />}
       <Deals />
       <EsportsEvents />
       <IndustryNews />
