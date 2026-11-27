@@ -1,5 +1,6 @@
 import { betterAuth } from 'better-auth';
-import { toNodeHandler } from 'better-auth/node';
+import { fromNodeHeaders, toNodeHandler } from 'better-auth/node';
+import express from 'express';
 import pg from 'pg';
 
 const sessionSeconds = 60 * 60;
@@ -61,6 +62,38 @@ export function mountAuth(app) {
     account: { accountLinking: { enabled: false } },
     rateLimit: { enabled: true },
     socialProviders,
+  });
+  const preferences = '/api/me/upcoming-games';
+  app.use(preferences, async (req, res, next) => {
+    res.set('Cache-Control', 'private, no-store');
+    const session = await auth.api.getSession({ headers: fromNodeHeaders(req.headers) });
+    if (!session) return res.sendStatus(401);
+    res.locals.member = session.user.id;
+    next();
+  });
+  app.get(preferences, async (_req, res) => {
+    const result = await pool.query('select cards from game_auth.upcoming_preferences where user_id=$1', [res.locals.member]);
+    res.json(result.rows[0]?.cards ?? {});
+  });
+  app.put(preferences + '/:card', express.json({limit:'8kb'}), async (req, res) => {
+    const key = req.params.card;
+    if (!/^(global|kr)-[123]$/.test(key)) return res.sendStatus(400);
+    const { title, date, link, reset } = req.body ?? {};
+    if (reset === true) {
+      await pool.query('update game_auth.upcoming_preferences set cards=cards-$2::text where user_id=$1', [res.locals.member,key]);
+      return res.sendStatus(204);
+    }
+    if (typeof title !== 'string' || !title.trim() || title.length > 120 ||
+        typeof date !== 'string' || (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) ||
+        (date && (!Number.isFinite(Date.parse(date)) || new Date(date).toISOString().slice(0,10) !== date)) ||
+        typeof link !== 'string' || link.length > 2048 || (link && (!URL.canParse(link) || new URL(link).protocol !== 'https:'))) return res.sendStatus(400);
+    const card = {title:title.trim(),date,link};
+    const result = await pool.query(`insert into game_auth.upcoming_preferences as p(user_id,cards)
+      values ($1,jsonb_build_object($2::text,$3::jsonb))
+      on conflict(user_id) do update set cards=p.cards || excluded.cards
+      where p.cards ? $2 or (select count(*) from jsonb_object_keys(p.cards)) < 5`, [res.locals.member,key,JSON.stringify(card)]);
+    if (!result.rowCount) return res.sendStatus(409);
+    res.json(card);
   });
   app.all('/api/auth/*splat', toNodeHandler(async (request) => {
     const response = await auth.handler(request);
