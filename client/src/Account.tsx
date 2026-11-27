@@ -11,14 +11,15 @@ async function authRequest(path: string, body?: object) {
 }
 
 export function Account() {
-  const [user, setUser] = useState<Member | null>(null);
+  const [session, setSession] = useState<{ user: Member; session: { expiresAt: string } } | null>(null);
+  const user = session?.user;
   const [mode, setMode] = useState<'closed' | 'login' | 'signup'>('closed');
   const [busy, setBusy] = useState(true);
   const [message, setMessage] = useState('');
   useEffect(() => {
     let active = true;
     authRequest('get-session').then(session => {
-      if (active) setUser(session?.user ?? null);
+      if (active) setSession(session);
     }).catch(() => { if (active) setMessage('로그인 서버에 연결할 수 없습니다.'); })
       .finally(() => { if (active) setBusy(false); });
     if (new URLSearchParams(location.search).has('authError')) {
@@ -27,6 +28,25 @@ export function Account() {
     return () => { active = false; };
   }, []);
 
+  useEffect(() => {
+    if (!session) return;
+    const deadline = Date.parse(session.session.expiresAt);
+    const expire = () => {
+      if (Date.now() < deadline) return;
+      setSession(null);
+      setMode('login');
+      setMessage('로그인 시간이 만료되었습니다. 다시 로그인해 주세요.');
+    };
+    const timer = window.setTimeout(expire, Math.max(0, deadline - Date.now()));
+    window.addEventListener('focus', expire);
+    document.addEventListener('visibilitychange', expire);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener('focus', expire);
+      document.removeEventListener('visibilitychange', expire);
+    };
+  }, [session]);
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
@@ -34,8 +54,10 @@ export function Account() {
     setMessage('');
     try {
       const fields = Object.fromEntries(data);
-      const result = await authRequest(mode === 'signup' ? 'sign-up/email' : 'sign-in/email', fields);
-      setUser(result.user);
+      await authRequest(mode === 'signup' ? 'sign-up/email' : 'sign-in/email', fields);
+      const current = await authRequest('get-session');
+      if (!current?.session) throw new Error('세션을 확인하지 못했습니다.');
+      setSession(current);
       setMode('closed');
     } catch {
       setMessage(mode === 'signup' ? '가입하지 못했습니다. 이메일과 비밀번호를 확인해 주세요.' : '로그인하지 못했습니다. 이메일과 비밀번호를 확인해 주세요.');
@@ -54,7 +76,7 @@ export function Account() {
 
   async function logout() {
     setBusy(true);
-    try { await authRequest('sign-out', {}); setUser(null); setMessage(''); }
+    try { await authRequest('sign-out', {}); setSession(null); setMessage(''); }
     catch { setMessage('로그아웃하지 못했습니다. 다시 시도해 주세요.'); }
     finally { setBusy(false); }
   }
