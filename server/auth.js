@@ -77,7 +77,7 @@ export function mountAuth(app) {
   });
   app.put(preferences + '/:card', express.json({limit:'8kb'}), async (req, res) => {
     const key = req.params.card;
-    if (!/^(global|kr)-[123]$/.test(key)) return res.sendStatus(400);
+    if (!/^(?:(?:global|kr)-[123]|[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})$/.test(key)) return res.sendStatus(400);
     const { title, date, link, reset } = req.body ?? {};
     if (reset === true) {
       await pool.query('update game_auth.upcoming_preferences set cards=cards-$2::text where user_id=$1', [res.locals.member,key]);
