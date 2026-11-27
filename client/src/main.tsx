@@ -13,6 +13,7 @@ type Game = {
   audience: 'global' | 'kr';
   releases: {
     platform: string;
+    confirmed_released?: boolean;
     release_date: string | null;
     release_year: number | null;
   }[];
@@ -27,6 +28,36 @@ const koreanDate = new Intl.DateTimeFormat('ko-KR', {
   dateStyle: 'long',
   timeZone: 'UTC',
 });
+
+function ReleaseStatus({date, year, link}: {date: string | null; year?: number | null; link?: string}) {
+  const id = /^https:\/\/store\.steampowered\.com\/app\/(\d+)(?:[/?#]|$)/i.exec(link ?? '')?.[1];
+  const [info, setInfo] = useState<{id: string; released: boolean; date: string | null} | null>(null);
+  const [today, setToday] = useState('');
+  useEffect(() => {
+    const controller = new AbortController();
+    async function check() {
+      setToday(new Intl.DateTimeFormat('sv-SE', {timeZone:'Asia/Seoul'}).format(new Date()));
+      if (!id) return;
+      try {
+        const res = await fetch('/api/release-status/' + id, {signal: controller.signal});
+        if (!res.ok) throw new Error();
+        const data = await res.json();
+        if (!controller.signal.aborted) setInfo({ ...data, id });
+      } catch { if (!controller.signal.aborted) setInfo(null); }
+    }
+    void check();
+    const timer = window.setInterval(check, 3600000);
+    return () => { controller.abort(); window.clearInterval(timer); };
+  }, [id]);
+  const store = info && info.id === id ? info : null;
+  const current = store ? store.date : date;
+  const formatted = current ? koreanDate.format(new Date(current)) : '';
+  if (store?.released) return <>출시 완료{formatted && ' · ' + formatted}</>;
+  if (store && date && current && current > date) return <>출시 연기 · {date} → {formatted}</>;
+  if (store && date && !current) return <>출시 일정 재확인 중 · 기존 예정일 {date}</>;
+  if (current && today && current <= today) return <>{formatted} · {store ? 'Steam 출시 대기 중' : '출시 여부 확인 중'}</>;
+  return <>{formatted || (year ? year + '년 예정' : '출시일 미정')}</>;
+}
 
 type Choice = { title: string; date: string; link: string };
 
@@ -77,7 +108,7 @@ function MyUpcomingGames() {
       <p>{entries.length} / 5개 등록</p>
       <ul className="games">{entries.map(([key, game]) => <li className="game" key={key}>
         <h3>{game.title}</h3>
-        <p>{game.date || '출시일 미정'}</p>
+        <p><ReleaseStatus date={game.date} link={game.link} /></p>
         {game.link && <a href={game.link} target="_blank" rel="noopener noreferrer">공식 링크</a>}
         <div className="deal-controls">
           <button disabled={!!editing || saving} onClick={() => setEditing(key)}>수정</button>
@@ -111,7 +142,7 @@ function Recommendations({ games }: { games: Game[] }) {
       <ul className="games">{group.map(game => <li className="game" key={game.slot}>
         <h3>{game.title}</h3>
         {!game.releases.length && <p>출시일 미정</p>}
-        {game.releases.map(r => <p key={r.platform}>{r.platform} · {r.release_date ? koreanDate.format(new Date(r.release_date)) : r.release_year ? r.release_year + '년 예정' : '출시일 미정'}</p>)}
+        {game.releases.map(r => <p key={r.platform}>{r.platform} · {r.confirmed_released ? '출시 완료' : <ReleaseStatus date={r.release_date} year={r.release_year} link={r.platform === 'Steam' ? game.source_url : undefined} />}</p>)}
         <a href={game.source_url} target="_blank" rel="noopener noreferrer">출처 보기</a>
       </li>)}</ul>
     </section>;
