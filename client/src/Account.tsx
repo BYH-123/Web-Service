@@ -10,9 +10,10 @@ async function authRequest(path: string, body?: object) {
   return res.json();
 }
 
-export function Account() {
+export function Account({ onMember }: { onMember: (id: string | null) => void }) {
   const [session, setSession] = useState<{ user: Member; session: { expiresAt: string } } | null>(null);
   const user = session?.user;
+  useEffect(() => onMember(user?.id ?? null), [user?.id, onMember]);
   const [mode, setMode] = useState<'closed' | 'login' | 'signup'>('closed');
   const [busy, setBusy] = useState(true);
   const [message, setMessage] = useState('');
