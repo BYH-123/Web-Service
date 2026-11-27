@@ -19,6 +19,7 @@ function httpsUrl(value) {
 
 export function createTodayMatches(token, fetchMatches = fetch, now = Date.now) {
   let cachedDay;
+  let nextRefresh = 0;
   let pending;
 
   async function collect(start) {
@@ -59,6 +60,7 @@ export function createTodayMatches(token, fetchMatches = fetch, now = Date.now) 
           event_url: httpsUrl(match.league?.url),
           watch_url: httpsUrl(stream?.raw_url),
           kind: 'match',
+          live: match.status === 'running',
         });
       }
       if (rows.length < 100) break;
@@ -71,9 +73,10 @@ export function createTodayMatches(token, fetchMatches = fetch, now = Date.now) 
   async function getMatches() {
     if (!token) return [];
     const day = koreaDayStart(now());
-    if (cachedDay === day) return pending;
+    if (cachedDay === day && now() < nextRefresh) return pending;
 
     cachedDay = day;
+    nextRefresh = now() + 60_000;
     pending = collect(day).catch((error) => {
       console.warn('Esports daily schedule refresh failed:', error.message);
       return [];
