@@ -78,6 +78,10 @@ drop policy if exists public_read on public.upcoming_recommendation_slots;
 create policy public_read on public.upcoming_recommendation_slots
     for select to anon, authenticated using (true);
 
+-- Set this per platform after verifying the publisher's announcement.
+alter table public.upcoming_recommendation_releases
+    add column if not exists confirmed_released boolean not null default false;
+
 create or replace view public.upcoming_game_recommendations
 with (security_invoker = true) as
 select
@@ -91,6 +95,7 @@ select
         jsonb_agg(
             jsonb_build_object(
                 'platform', r.platform,
+                'confirmed_released', r.confirmed_released,
                 'release_date', r.release_date,
                 'release_year', r.release_year,
                 'date_precision', case
@@ -106,10 +111,7 @@ select
 from public.upcoming_recommendation_slots s
 join public.upcoming_recommendation_games g on g.slug = s.game_slug
 left join public.upcoming_recommendation_releases r on r.game_slug = g.slug
-group by s.audience, s.slot, g.slug, g.title, g.source_url
-having s.slot <> 3 or min(r.release_date) between
-    (now() at time zone 'Asia/Seoul')::date
-    and ((now() at time zone 'Asia/Seoul')::date + interval '6 months')::date;
+group by s.audience, s.slot, g.slug, g.title, g.source_url;
 
 revoke all on public.upcoming_recommendation_games,
     public.upcoming_recommendation_releases, public.upcoming_recommendation_slots,
