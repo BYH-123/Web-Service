@@ -91,3 +91,57 @@ h1 { line-height: 1.2; }
 .esports-settings { display: grid; gap: .75rem; max-width: 36rem; margin: 1rem 0; }
 .esports-settings label { display: block; margin: .25rem 0; }
 .esports-settings input, .esports-settings select { max-width: 100%; font: inherit; }
+
+.esports-schedule { margin-top: 1.75rem; }
+.esports-schedule-header, .esports-schedule-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: .4rem 1rem;
+}
+.esports-schedule-header { justify-content: space-between; margin-bottom: .65rem; }
+.esports-schedule-header h3 { margin: 0; }
+.esports-schedule-header h3 span { font-size: .85rem; font-weight: 400; color: #536176; }
+.esports-schedule-actions button {
+  border: 0;
+  background: transparent;
+  padding: .35rem 0;
+  font: inherit;
+  font-size: .875rem;
+  color: #204faf;
+  cursor: pointer;
+}
+.esports-schedule-actions button:hover { text-decoration: underline; }
+.esports-schedule-list { margin: 0; padding: 0; list-style: none; border-top: 1px solid #d7e0ee; }
+.esports-schedule-list li { border-bottom: 1px solid #d7e0ee; }
+.esports-schedule-row {
+  display: grid;
+  grid-template-columns: 3.4rem minmax(0, 1fr) 3.2rem;
+  gap: .65rem;
+  align-items: baseline;
+  width: 100%;
+  padding: .65rem .45rem;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  line-height: 1.4;
+  color: inherit;
+  cursor: pointer;
+}
+.esports-schedule-row time { font-weight: 600; font-variant-numeric: tabular-nums; }
+.esports-schedule-match { display: grid; gap: .15rem; overflow-wrap: anywhere; }
+.esports-schedule-match span, .esports-schedule-status { font-size: .8125rem; color: #536176; }
+.esports-schedule-status { text-align: right; }
+.esports-schedule-status.is-live { color: #0c654d; font-weight: 600; }
+.esports-schedule-row:hover, .esports-schedule-row[aria-pressed="true"] { background: #e9eff9; }
+.esports-schedule-row[aria-pressed="true"] strong { color: #204faf; }
+.esports-schedule-row:focus-visible { outline: 2px solid #204faf; outline-offset: -2px; }
+
+@media (max-width: 34rem) {
+  .esports-schedule-row {
+    grid-template-columns: 2.8rem minmax(0, 1fr) 2.8rem;
+    gap: .35rem;
+    padding-inline: .25rem;
+  }
+}
