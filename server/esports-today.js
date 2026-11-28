@@ -4,6 +4,9 @@ const gameNames = new Map([
   ['cs-go', 'CS2'], ['counter-strike', 'CS2'], ['counter-strike-2', 'CS2'], ['cs2', 'CS2'],
   ['lol', '리그 오브 레전드'], ['league-of-legends', '리그 오브 레전드'],
   ['valorant', '발로란트'], ['pubg', '배틀그라운드'],
+  ['overwatch', '오버워치'], ['overwatch-2', '오버워치'], ['ow', '오버워치'],
+  ['eternal-return', '이터널 리턴'],
+  ['dota-2', '도타 2'], ['dota2', '도타 2'], ['rocket-league', '로켓 리그'], ['rl', '로켓 리그'],
 ]);
 
 function koreaDayStart(time) {

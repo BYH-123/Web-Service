@@ -163,9 +163,7 @@ app.get('/api/esports-events', async (request, response) => {
     .from('esports_events')
     .select('slug,game,title,starts_at,last_day,event_url,watch_url')
     .gte('featured_order', 1)
-    .lte('featured_order', 3)
-    .order('featured_order')
-    .limit(3);
+    .order('featured_order');
 
   if (error) {
     console.error('Esports query failed:', error.message);

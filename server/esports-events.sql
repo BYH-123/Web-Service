@@ -19,7 +19,7 @@ grant select on public.esports_events to anon, authenticated;
 drop policy if exists "Read featured esports events" on public.esports_events;
 create policy "Read featured esports events" on public.esports_events
   for select to anon, authenticated
-  using (featured_order between 1 and 3);
+  using (featured_order is not null);
 
 insert into public.esports_events
   (slug, game, title, starts_at, last_day, event_url, watch_url, featured_order)

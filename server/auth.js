@@ -8,6 +8,7 @@ const sessionSeconds = 60 * 60;
 const esportsPreferences = '/api/me/esports';
 const esportsGames = ['CS2', '리그 오브 레전드', '발로란트', '배틀그라운드'];
 const broadcastUrl = /^https:\/\/(?:www\.youtube\.com\/watch\?v=[\w-]{11}|chzzk\.naver\.com\/(?:live\/[a-f0-9]{32}\/?|video\/\d+\/?|clips\/[\w-]+))$/i;
+const youtubeChannelPath = /^\/(?:@(?:[\w.-]|%[\da-f]{2})+|(?:channel|c|user)\/[\w.-]+)(?:\/(?:live|streams))?$/i;
 
 function parseEsportsPreferences(body) {
   const { games, slots } = body ?? {};
@@ -131,10 +132,29 @@ export function mountAuth(app) {
   app.put(esportsPreferences, express.json({ limit: '8kb' }), async (req, res) => {
     const settings = parseEsportsPreferences(req.body);
     if (!settings) return res.sendStatus(400);
-    await pool.query(`insert into game_auth.esports_preferences (user_id, settings)
-      values ($1, $2::jsonb) on conflict (user_id) do update set settings = excluded.settings`,
+    await pool.query(`insert into game_auth.esports_preferences as p (user_id, settings)
+      values ($1, $2::jsonb) on conflict (user_id) do update set settings = p.settings || excluded.settings`,
     [res.locals.member, JSON.stringify(settings)]);
     res.json(settings);
+  });
+  app.post(esportsPreferences + '/games', express.json({ limit: '2kb' }), async (req, res) => {
+    const { name, url } = req.body ?? {};
+    const parsed = typeof url === 'string' && url.length <= 500 ? URL.parse(url) : null;
+    if (typeof name !== 'string' || !name.trim() || name.length > 80 ||
+        !parsed || parsed.protocol !== 'https:' || parsed.username || parsed.password || parsed.port ||
+        !(broadcastUrl.test(parsed.href) || (parsed.hostname === 'www.youtube.com' &&
+          !parsed.search && !parsed.hash && youtubeChannelPath.test(parsed.pathname)))) return res.sendStatus(400);
+    const game = { name: name.trim(), url: parsed.href };
+    const key = game.name.normalize('NFKC').toLowerCase();
+    const result = await pool.query(`insert into game_auth.esports_preferences as p (user_id, settings)
+      values ($1, jsonb_build_object('customGames', jsonb_build_object($2::text, $3::jsonb)))
+      on conflict (user_id) do update set settings = jsonb_set(p.settings, '{customGames}',
+        coalesce(p.settings->'customGames', '{}'::jsonb) || (excluded.settings->'customGames'))
+      where not coalesce(p.settings->'customGames', '{}'::jsonb) ? $2
+      returning settings->'customGames' as games`,
+    [res.locals.member, key, JSON.stringify(game)]);
+    if (!result.rowCount) return res.sendStatus(409);
+    res.json(result.rows[0].games);
   });
   app.all('/api/auth/*splat', toNodeHandler(async (request) => {
     const response = await auth.handler(request);

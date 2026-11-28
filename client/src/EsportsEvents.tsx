@@ -37,7 +37,7 @@ function canOpenBroadcast(event: EsportsEvent, now: number) {
   const untilStart = Date.parse(event.starts_at) - now;
   return event.live || event.broadcast_available ||
     (event.status === 'not_started' && untilStart >= -broadcastGraceMs && untilStart <= broadcastLeadMs &&
-      eventSources(event).some(source => source.platform === 'YouTube'));
+      eventSources(event).some(source => source.platform === 'YouTube' && source.embed));
 }
 
 type VideoAudio = { volume: number; muted: boolean };
@@ -61,14 +61,12 @@ function saveVideoAudio(key: string, audio: VideoAudio) {
   catch { /* Keep this setting in memory if storage is unavailable. */ }
 }
 
-type BroadcastSource =
-  | { platform: 'YouTube'; url: string; embed: string }
-  | { platform: '치지직'; url: string; embed?: string };
+type BroadcastSource = { platform: 'YouTube' | '치지직'; url: string; embed?: string };
 
 function broadcastSource(watchUrl: string | null): BroadcastSource | null {
   if (!watchUrl) return null;
   const url = URL.canParse(watchUrl) ? new URL(watchUrl) : null;
-  if (!url || !['https:', 'http:'].includes(url.protocol) || url.username || url.password) return null;
+  if (!url || !['https:', 'http:'].includes(url.protocol) || url.username || url.password || url.port) return null;
 
   const youtubeId = url.hostname === 'youtu.be'
     ? url.pathname.match(/^\/([^/]+)\/?$/)?.[1]
@@ -82,6 +80,11 @@ function broadcastSource(watchUrl: string | null): BroadcastSource | null {
       embed: `https://www.youtube-nocookie.com/embed/${youtubeId}?autoplay=1&mute=1&enablejsapi=1&origin=${encodeURIComponent(location.origin)}`,
     };
   }
+  const path = url.pathname.replace(/\/$/, '');
+  if (['www.youtube.com', 'youtube.com', 'm.youtube.com'].includes(url.hostname) &&
+      /^\/(?:@(?:[\w.-]|%[\da-f]{2})+|(?:channel|c|user)\/[\w.-]+)(?:\/(?:live|streams))?$/i.test(path)) {
+    return { platform: 'YouTube', url: `https://www.youtube.com${path}` };
+  }
   if (url.hostname === 'chzzk.naver.com') {
     const clipId = url.pathname.match(/^\/(?:clips|embed\/clip)\/([\w-]+)\/?$/)?.[1];
     if (clipId) {
@@ -91,8 +94,9 @@ function broadcastSource(watchUrl: string | null): BroadcastSource | null {
         embed: `https://chzzk.naver.com/embed/clip/${clipId}`,
       };
     }
-    if (/^\/(?:live\/[a-f0-9]{32}|video\/\d+)\/?$/i.test(url.pathname)) {
-      return { platform: '치지직', url: `https://chzzk.naver.com${url.pathname.replace(/\/$/, '')}` };
+    const channel = path.match(/^\/(?:live\/)?([a-f0-9]{32})$/i)?.[1];
+    if (channel || /^\/video\/\d+$/.test(path)) {
+      return { platform: '치지직', url: `https://chzzk.naver.com${channel ? '/live/' + channel.toLowerCase() : path}` };
     }
   }
   return null;
@@ -198,113 +202,35 @@ function Broadcast({ title, sources, eventUrl }: { title: string; sources: Broad
   return <>
     {embed && <iframe ref={frame} id={playerId} key={embed} className="esports-player" src={embed} title={title} allow={current.platform === 'YouTube' ? 'autoplay; fullscreen' : 'fullscreen'} allowFullScreen />}
     {playable.length > 1 && <button onClick={() => setFailed(previous => [...previous,current.url])}>다른 중계로 전환</button>}
-    {!embed && <p>페이지 안에서 재생할 수 있는 중계가 없습니다.</p>}
+    {!embed && <p>{sources.length ? '방송은 플랫폼에서 열어 시청할 수 있어요.' : '등록된 중계가 없습니다.'}</p>}
     {sources.map(item => <SourceLink key={item.url} source={item} />)}
     {!sources.length && eventUrl && <a href={eventUrl} target="_blank" rel="noopener noreferrer">공식 일정 보기 ↗</a>}
   </>;
 }
 
+type CustomGame = { name: string; url: string };
 type Settings = {
-  games: string[];
-  slots: (null | { match: string } | { title: string; url: string })[];
+  games?: string[];
+  slots?: (null | { match: string } | { title: string; url: string })[];
+  customGames?: Record<string, CustomGame>;
 };
 
 type Schedule = { matches: EsportsEvent[]; scheduleAvailable: boolean; liveAvailable: boolean };
-type Card = EsportsEvent | { slug: string; title: string; url: string };
 
-const defaultSettings: Settings = { games: [], slots: [null, null, null] };
-const games = ['CS2', '리그 오브 레전드', '발로란트', '배틀그라운드'];
+const games = ['CS2', '리그 오브 레전드', '발로란트', '배틀그라운드', '오버워치', '이터널 리턴', '도타 2', '로켓 리그'];
+const guestGamesKey = 'esports-custom-games';
+const officialChannels: Record<string, string> = {
+  '오버워치': 'https://www.youtube.com/@ow_esports_kr/streams',
+  '이터널 리턴': 'https://www.youtube.com/@EternalReturnKR/streams',
+};
 
-function SettingsForm({ settings, matches, save, close }: {
-  settings: Settings; matches: EsportsEvent[]; save: (settings: Settings) => Promise<void>; close: () => void;
-}) {
-  const [draft, setDraft] = useState(settings);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
+function gameKey(name: string) {
+  return name.trim().normalize('NFKC').toLowerCase();
+}
 
-  function update(index: number, slot: Settings['slots'][number]) {
-    setDraft(previous => ({ ...previous, slots: previous.slots.map((item, i) => i === index ? slot : item) }));
-  }
-
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError('');
-    const slots: Settings['slots'] = [];
-    const used = new Set<string>();
-    for (const slot of draft.slots) {
-      if (slot === null) {
-        slots.push(null);
-        continue;
-      }
-      const source = 'url' in slot ? broadcastSource(slot.url.trim()) : null;
-      const key = 'match' in slot ? slot.match : source?.url;
-      if (!key || ('url' in slot && !slot.title.trim())) {
-        setError('경기를 선택하거나 방송 이름과 YouTube·치지직 링크를 입력해 주세요.');
-        return;
-      }
-      if (used.has(key)) {
-        setError('같은 경기나 방송은 한 번만 등록할 수 있어요.');
-        return;
-      }
-      used.add(key);
-      slots.push('match' in slot ? slot : { title: slot.title.trim(), url: key });
-    }
-    setSaving(true);
-    try { await save({ games: draft.games, slots }); }
-    catch { setError('대회 설정을 저장하지 못했습니다. 다시 시도해 주세요.'); }
-    finally { setSaving(false); }
-  }
-
-  return (
-    <form className="esports-settings" aria-label="대회 설정" onSubmit={submit}>
-      <fieldset disabled={saving}>
-        <legend>관심 종목</legend>
-        {games.map(game => (
-          <label key={game}>
-            <input type="checkbox" checked={draft.games.includes(game)} onChange={event => {
-              const checked = event.target.checked;
-              setDraft(previous => ({ ...previous, games: checked
-                ? [...previous.games, game] : previous.games.filter(item => item !== game) }));
-            }} /> {game}
-          </label>
-        ))}
-      </fieldset>
-      {draft.slots.map((slot, index) => (
-        <fieldset key={index} disabled={saving}>
-          <legend>대회 {index + 1}</legend>
-          <label>표시 방식
-            <select value={slot === null ? 'auto' : 'match' in slot ? 'match' : 'url'}
-              onChange={event => update(index, event.target.value === 'match' ? { match: '' }
-                : event.target.value === 'url' ? { title: '', url: '' } : null)}>
-              <option value="auto">자동 추천</option>
-              <option value="match">경기 선택</option>
-              <option value="url">방송 링크 직접 입력</option>
-            </select>
-          </label>
-          {slot && ('match' in slot ? (
-            <label>경기
-              <select required value={slot.match} onChange={event => update(index, { match: event.target.value })}>
-                <option value="">경기를 선택하세요</option>
-                {slot.match && !matches.some(match => match.slug === slot.match) &&
-                  <option value={slot.match}>이전에 선택한 경기</option>}
-                {matches.map(match => <option key={match.slug} value={match.slug}>{match.game} · {match.title}</option>)}
-              </select>
-            </label>
-          ) : (
-            <>
-              <label>방송 이름 <input required maxLength={120} value={slot.title} onChange={event => update(index, { ...slot, title: event.target.value })} /></label>
-              <label>방송 URL <input required type="url" maxLength={500} value={slot.url} onChange={event => update(index, { ...slot, url: event.target.value })} /></label>
-            </>
-          ))}
-        </fieldset>
-      ))}
-      {error && <p role="alert">{error}</p>}
-      <div className="deal-controls">
-        <button disabled={saving} type="submit">저장</button>
-        <button disabled={saving} type="button" onClick={close}>취소</button>
-      </div>
-    </form>
-  );
+function readGuestGames(): Record<string, CustomGame> {
+  try { return JSON.parse(localStorage.getItem(guestGamesKey) ?? '{}') ?? {}; }
+  catch { return {}; }
 }
 
 function cleanTitle(title: string) {
@@ -318,29 +244,25 @@ function featuredMatch(event: EsportsEvent, matches: EsportsEvent[], now: number
     ?? candidates.find(match => match.live) ?? candidates[0];
 }
 
-function EventCard({ card, matches, now }: { card: Card; matches: EsportsEvent[]; now: number }) {
-  if ('url' in card) {
-    const source = broadcastSource(card.url);
-    return (
-      <div className="game">
-        <h3>{card.title}</h3>
-        {source && <Broadcast key={source.url} title={card.title + ' 중계'} sources={[source]} />}
-      </div>
-    );
-  }
+function EventCard({ card, matches, now, fallback }: {
+  card: EsportsEvent; matches: EsportsEvent[]; now: number; fallback: BroadcastSource | null;
+}) {
   const match = card.kind === 'match' ? undefined : featuredMatch(card, matches, now);
   const event = match ?? card;
   const sources = eventSources(event);
+  const mayPlay = canOpenBroadcast(event, now) ||
+    ((event.kind !== 'match' || event.status === 'finished') && sources.some(source => source.embed));
   const today = new Date(now + koreaOffsetMs).toISOString().slice(0, 10);
   const status = event.live ? '진행 중' : event.status === 'finished' || (event.last_day && event.last_day < today) ? '종료'
     : Date.parse(event.starts_at) > now ? '예정' : event.kind === 'match' ? '시작 확인 중' : '대회 기간';
   return (
-    <div className="game">
+    <div className="game esports-event-card">
       <p>{event.game} · {status}</p>
       <h3>{card.title}</h3>
-      {match && <p>{match.title}</p>}
+      {match ? <p>{match.title}</p> : event.kind === 'match' && (event.series || event.league) && <p>{event.series || event.league}</p>}
       <p>시작 <time dateTime={event.starts_at}>{dateTime.format(new Date(event.starts_at))}</time> (KST)</p>
-      {canOpenBroadcast(event, now)
+      {!sources.length && fallback && <SourceLink source={fallback} />}
+      {mayPlay && (sources.length > 0 || !fallback)
         ? <Broadcast key={event.slug} title={event.title + ' 중계'} sources={sources} eventUrl={event.event_url} />
         : sources[0] ? <SourceLink source={sources[0]} />
         : event.event_url && <a href={event.event_url} target="_blank" rel="noopener noreferrer">공식 일정 보기 ↗</a>}
@@ -349,8 +271,7 @@ function EventCard({ card, matches, now }: { card: Card; matches: EsportsEvent[]
 }
 
 export function EsportsEvents({ member }: { member: string | null }) {
-  const [featured, setFeatured] = useState<EsportsEvent[] | null>(null);
-  const [featuredError, setFeaturedError] = useState(false);
+  const [featured, setFeatured] = useState<EsportsEvent[]>([]);
   const [schedule, setSchedule] = useState<Schedule | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [checkedAt, setCheckedAt] = useState(() => Date.now());
@@ -392,10 +313,9 @@ export function EsportsEvents({ member }: { member: string | null }) {
       const result: EsportsEvent[] = await response.json();
       if (!controller.signal.aborted) {
         setFeatured(result);
-        setFeaturedError(false);
       }
     }).catch(() => {
-      if (!controller.signal.aborted) setFeaturedError(true);
+      if (!controller.signal.aborted) setFeatured([]);
     });
     return () => controller.abort();
   }, [attempt]);
@@ -403,9 +323,7 @@ export function EsportsEvents({ member }: { member: string | null }) {
   return (
     <section className="esports" aria-labelledby="esports-heading">
       <h2 id="esports-heading">대회·방송</h2>
-      {featuredError && <p role="alert">국내 주목대회를 불러오지 못했습니다.</p>}
-      {!featured && !featuredError && <p role="status">국내 주목대회를 확인하고 있습니다.</p>}
-      <EsportsBoard key={member ?? 'guest'} member={member} featured={featured ?? []} matches={matches} now={checkedAt}
+      <EsportsBoard key={member ?? 'guest'} member={member} featured={featured} matches={matches} now={checkedAt}
         schedule={schedule} refresh={() => setAttempt(current => current + 1)} />
     </section>
   );
@@ -415,13 +333,14 @@ function EsportsBoard({ member, featured, matches, now, schedule, refresh }: {
   member: string | null; featured: EsportsEvent[]; matches: EsportsEvent[]; now: number;
   schedule: Schedule | null; refresh: () => void;
 }) {
-  const [settings, setSettings] = useState<Settings | null>(null);
+  const [settings, setSettings] = useState<Settings | null>(() => member ? null : { customGames: readGuestGames() });
   const [settingsError, setSettingsError] = useState(false);
   const [settingsAttempt, setSettingsAttempt] = useState(0);
-  const [editing, setEditing] = useState(false);
-  const [slotIndex, setSlotIndex] = useState<number | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [addError, setAddError] = useState('');
+  const [selectedGame, setSelectedGame] = useState('');
   const [selectedMatch, setSelectedMatch] = useState('');
-  const [showAll, setShowAll] = useState(false);
 
   useEffect(() => {
     if (!member) return;
@@ -439,90 +358,152 @@ function EsportsBoard({ member, featured, matches, now, schedule, refresh }: {
     return () => controller.abort();
   }, [member, settingsAttempt]);
 
-  async function save(next: Settings) {
-    const response = await fetch('/api/me/esports', {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(next),
-    });
-    if (!response.ok) throw new Error();
-    setSettings(await response.json());
+  const customGames = { ...settings?.customGames };
+  // Older profiles can already have manually entered broadcasts.
+  for (const slot of settings?.slots ?? []) {
+    if (slot && 'url' in slot && !Object.hasOwn(customGames, gameKey(slot.title))) {
+      Object.defineProperty(customGames, gameKey(slot.title), { value: { name: slot.title, url: slot.url }, enumerable: true });
+    }
+  }
+  const favoriteGames = (settings?.games ?? []).filter(game => games.includes(game));
+  const gameOptions = [...new Set([...favoriteGames, ...games])];
+
+  function chooseGame(game: string) {
+    setSelectedGame(game);
     setSelectedMatch('');
-    setSlotIndex(null);
-    setShowAll(false);
-    setEditing(false);
   }
 
-  const { games: interests, slots } = settings ?? defaultSettings;
+  async function addGame(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setAddError('');
+    const fields = new FormData(event.currentTarget);
+    const name = String(fields.get('gameName') ?? '').trim();
+    const source = broadcastSource(String(fields.get('gameUrl') ?? '').trim());
+    const key = gameKey(name);
+    if (!key || !source || source.url.length > 500) {
+      setAddError('게임 이름과 YouTube 또는 치지직의 영상·방송·채널 주소를 입력해 주세요.');
+      return;
+    }
+    if (Object.hasOwn(customGames, key) || games.some(game => gameKey(game) === key)) {
+      setAddError('이미 관심 종목에 있는 게임입니다.');
+      return;
+    }
+    const newGame = { name, url: source.url };
+    setSaving(true);
+    try {
+      let next = { ...settings?.customGames, [key]: newGame };
+      if (member) {
+        const response = await fetch('/api/me/esports/games', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newGame),
+        });
+        if (response.status === 409) {
+          setAddError('이미 관심 종목에 있는 게임입니다.');
+          return;
+        }
+        if (!response.ok) throw new Error();
+        next = await response.json();
+      } else {
+        localStorage.setItem(guestGamesKey, JSON.stringify(next));
+      }
+      setSettings(previous => ({ ...previous, customGames: next }));
+      chooseGame('custom:' + key);
+      setAdding(false);
+    } catch {
+      setAddError('관심 종목을 저장하지 못했습니다. 다시 시도해 주세요.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const custom = selectedGame.startsWith('custom:') ? customGames[selectedGame.slice(7)] : undefined;
   const dayStart = Math.floor((now + koreaOffsetMs) / dayMs) * dayMs - koreaOffsetMs;
-  const today = matches.filter(match => {
+  const listedMatches = custom ? [] : matches.filter(match => !selectedGame || match.game === selectedGame);
+  function isToday(match: EsportsEvent) {
     const start = Date.parse(match.starts_at);
     return start >= dayStart && start < dayStart + dayMs;
-  });
-  const interested = matches.filter(match => interests.includes(match.game) &&
-    (match.live || (match.status !== 'finished' && Date.parse(match.starts_at) >= dayStart)));
-  const preferred = [...interested].sort((a, b) => Number(!!b.live) - Number(!!a.live));
-  const cards: (Card | undefined)[] = slots.map((slot, i) => {
-    if (!slot) return undefined;
-    if ('match' in slot) return matches.find(match => match.slug === slot.match);
-    return { slug: `custom-${i}`, title: slot.title, url: slot.url };
-  });
-  const used = new Set(cards.map(card => card?.slug));
-  const candidates = [...preferred, ...featured].filter(card => !used.has(card.slug));
-  const available = cards.map(card => card ?? candidates.shift());
-  const index = slotIndex ?? Math.max(0, available.findIndex(card => {
-    if (!card) return false;
-    return 'url' in card || canOpenBroadcast(card, now) || !!featuredMatch(card, matches, now);
-  }));
-  const chosenMatch = matches.find(match => match.slug === selectedMatch);
-  const card = chosenMatch ?? available[index];
-  const displayedMatches = showAll || !interests.length ? today : today.filter(match => interests.includes(match.game));
-
-  function selectSlot(next: number) {
-    setSelectedMatch('');
-    setSlotIndex(next);
   }
+  const today = listedMatches.filter(isToday);
+  const tournaments = selectedGame && !custom ? featured.filter(event => event.game === selectedGame) : [];
+  const events = [...tournaments, ...listedMatches.filter(match => match.live || isToday(match))];
+  const featuredWithStream = tournaments.find(event => featuredMatch(event, matches, now));
+  const card = selectedGame && !custom ? events.find(event => event.slug === selectedMatch)
+    ?? (featuredWithStream || events.find(event => event.live && eventSources(event).some(source => source.embed))
+      || events.find(event => event.live) || events.find(event => canOpenBroadcast(event, now))
+      || today.find(event => Date.parse(event.starts_at) >= now) || events[0]) : undefined;
+  const fallback = selectedGame && Object.hasOwn(officialChannels, selectedGame)
+    ? broadcastSource(officialChannels[selectedGame]) : null;
+  const customSource = custom ? broadcastSource(custom.url) : null;
 
   return (
     <>
-      <h3>{settings && (interests.length || slots.some(Boolean)) ? '내 주목대회' : '국내 주목대회'}</h3>
-      {member && settings && <button type="button" onClick={() => setEditing(current => !current)}>대회 설정 변경</button>}
-      {settingsError && <p role="alert">대회 설정을 불러오지 못했습니다.{' '}
-        <button type="button" onClick={() => setSettingsAttempt(current => current + 1)}>다시 시도</button></p>}
-      {editing && settings && <SettingsForm settings={settings} matches={matches} save={save} close={() => setEditing(false)} />}
-      <div className="esports-controls" aria-label="주목대회 선택">
-        <button type="button" aria-label="이전 대회" onClick={() => selectSlot((index + 2) % 3)}>←</button>
-        {available.map((item, i) => (
-          <button type="button" key={i} aria-pressed={!chosenMatch && i === index} onClick={() => selectSlot(i)}>
-            {item?.title ?? `주목대회 ${i + 1}`}
-          </button>
+      <h3>관심 종목</h3>
+      <div className="esports-controls esports-game-picker" role="group" aria-label="관심 종목 선택">
+        {gameOptions.map(game => (
+          <button type="button" key={game} aria-pressed={selectedGame === game} onClick={() => chooseGame(game)}>{game}</button>
         ))}
-        <button type="button" aria-label="다음 대회" onClick={() => selectSlot((index + 1) % 3)}>→</button>
+        {Object.entries(customGames).map(([key, game]) => (
+          <button type="button" key={'custom:' + key} aria-pressed={selectedGame === 'custom:' + key}
+            onClick={() => chooseGame('custom:' + key)}>{game.name}</button>
+        ))}
+        <button type="button" disabled={!settings} aria-expanded={adding} onClick={() => {
+          setAddError('');
+          setAdding(current => !current);
+        }}>+ 관심 종목 추가</button>
       </div>
-      {card ? <EventCard key={card.slug} card={card} matches={matches} now={now} />
-        : <p>등록된 주목대회 정보가 없습니다.</p>}
-      <section className="esports-schedule" aria-labelledby="esports-schedule-heading">
+      {settingsError && <p role="alert">관심 종목을 불러오지 못했습니다.{' '}
+        <button type="button" onClick={() => setSettingsAttempt(current => current + 1)}>다시 시도</button></p>}
+      {adding && (
+        <form className="esports-settings" aria-label="관심 종목 추가" onSubmit={addGame}>
+          <label>게임 이름 <input name="gameName" required maxLength={80} disabled={saving} /></label>
+          <label>방송 주소 <input name="gameUrl" type="url" required maxLength={500} disabled={saving}
+            placeholder="https://…" aria-describedby="esports-url-help" /></label>
+          <p id="esports-url-help">YouTube 또는 치지직 주소를 입력하세요.</p>
+          {addError && <p role="alert">{addError}</p>}
+          <div className="deal-controls">
+            <button type="submit" disabled={saving}>추가</button>
+            <button type="button" disabled={saving} onClick={() => setAdding(false)}>취소</button>
+          </div>
+        </form>
+      )}
+      {card && events.length > 1 && (
+        <div className="esports-controls">
+          <button type="button" aria-label="이전 경기" onClick={() => setSelectedMatch(events[(events.indexOf(card) + events.length - 1) % events.length].slug)}>←</button>
+          <select aria-label="대회 또는 경기 선택" value={card.slug} onChange={event => setSelectedMatch(event.target.value)}>
+            {events.map(event => <option key={event.slug} value={event.slug}>{event.title}{event.live ? ' · 진행 중' : ''}</option>)}
+          </select>
+          <button type="button" aria-label="다음 경기" onClick={() => setSelectedMatch(events[(events.indexOf(card) + 1) % events.length].slug)}>→</button>
+        </div>
+      )}
+      {card && <EventCard key={card.slug} card={card} matches={matches} now={now} fallback={fallback} />}
+      {custom && <div className="game esports-event-card">
+        <h3>{custom.name}</h3>
+        {customSource && <Broadcast key={selectedGame} title={custom.name + ' 중계'} sources={[customSource]} />}
+      </div>}
+      {!card && !custom && fallback && <div className="game esports-event-card">
+        <h3>{selectedGame}</h3>
+        <SourceLink source={fallback} />
+      </div>}
+      {!custom && <section className="esports-schedule" aria-labelledby="esports-schedule-heading">
         <div className="esports-schedule-header">
           <h3 id="esports-schedule-heading">오늘의 경기 일정 <span>(한국 시간)</span></h3>
           <div className="esports-schedule-actions">
-            {!!interests.length && <button type="button" onClick={() => setShowAll(current => !current)}>
-              {showAll ? '관심 종목 보기' : '전체 대회 보기'}
-            </button>}
+            {selectedGame && <button type="button" onClick={() => chooseGame('')}>전체 경기 보기</button>}
             <button type="button" onClick={refresh}>경기 새로고침</button>
           </div>
         </div>
         {!schedule && <p role="status">경기 일정을 확인하고 있습니다.</p>}
         {schedule && !schedule.scheduleAvailable && <p role="status">오늘 경기 일정을 확인하지 못했습니다.</p>}
         {schedule?.scheduleAvailable && !schedule.liveAvailable && <p role="status">실시간 진행 상태를 확인하지 못했습니다.</p>}
-        {schedule?.scheduleAvailable && !today.length && <p>오늘 예정된 경기가 없습니다.</p>}
-        {schedule?.scheduleAvailable && !!today.length && !displayedMatches.length && <p>오늘 관심 종목의 경기가 없습니다.</p>}
-        {!!displayedMatches.length && (
+        {schedule?.scheduleAvailable && !today.length && <p>{selectedGame ? `오늘 예정된 ${selectedGame} 경기가 없습니다.` : '오늘 예정된 경기가 없습니다.'}</p>}
+        {!!today.length && (
           <ul className="esports-schedule-list" role="list" tabIndex={0} aria-labelledby="esports-schedule-heading">
-            {displayedMatches.map(match => {
+            {today.map(match => {
               const status = match.live ? '진행 중' : match.status === 'finished' ? '종료'
                 : Date.parse(match.starts_at) > now ? '예정' : null;
               return (
                 <li key={match.slug}>
                   <button className="esports-schedule-row" type="button"
-                    aria-pressed={card?.slug === match.slug} onClick={() => setSelectedMatch(match.slug)}>
+                    aria-pressed={card?.slug === match.slug} onClick={() => { setSelectedGame(match.game); setSelectedMatch(match.slug); }}>
                     <time dateTime={match.starts_at}>{matchTime.format(new Date(match.starts_at))}</time>
                     <span className="esports-schedule-match">
                       <strong>{match.title}</strong>
@@ -535,7 +516,7 @@ function EsportsBoard({ member, featured, matches, now, schedule, refresh }: {
             })}
           </ul>
         )}
-      </section>
+      </section>}
     </>
   );
 }

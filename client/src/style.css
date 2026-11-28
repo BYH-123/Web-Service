@@ -164,3 +164,17 @@ h1 { line-height: 1.2; }
 .admin-list .account { flex-basis:100%; }
 .admin-list fieldset { min-width:0; }
 .admin-list input { max-width:100%; box-sizing:border-box; }
+.esports-game-picker button {
+  min-height: 2.25rem;
+  padding: .3rem .65rem;
+  border: 1px solid #d7e0ee;
+  border-radius: .4rem;
+  background: white;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.esports-game-picker button[aria-pressed="true"] { background: #e9eff9; }
+.esports-game-picker + .esports-settings { padding: .5rem 0; }
+.esports-settings #esports-url-help { margin: 0; color: #536176; font-size: .875rem; }
+.esports-controls select { min-width: 0; max-width: calc(100% - 7rem); font: inherit; }
+.esports-event-card { margin-top: .75rem; }
