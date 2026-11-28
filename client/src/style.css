@@ -153,3 +153,14 @@ h1 { line-height: 1.2; }
     padding-inline: .25rem;
   }
 }
+
+.admin-tabs, .admin-search { display:flex; flex-wrap:wrap; align-items:center; gap:.5rem; margin:1rem 0; }
+.admin-tabs button, .admin-dashboard button { border:1px solid #c6d3e4; border-radius:.4rem; padding:.4rem .8rem; background:white; color:#203553; cursor:pointer; }
+.admin-tabs button[aria-pressed="true"] { background:#233d65; color:white; border-color:#233d65; }
+.admin-dashboard button:disabled { opacity:.55; cursor:default; }
+.admin-list { padding:0; list-style:none; border-radius:.65rem; background:white; }
+.admin-list li { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.75rem; padding:1rem; border-bottom:1px solid #dae2ef; overflow-wrap:anywhere; }
+.admin-list small { display:block; color:#536176; }
+.admin-list .account { flex-basis:100%; }
+.admin-list fieldset { min-width:0; }
+.admin-list input { max-width:100%; box-sizing:border-box; }

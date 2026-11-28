@@ -1,21 +1,6 @@
-import { createContext, useContext, useEffect, useId, useState } from 'react';
-import type { ReactNode, FormEvent } from 'react';
+import { useId, useState } from 'react';
+import type { FormEvent } from 'react';
 
-const Admin = createContext(false);
-export function AdminAccess({member,children}:{member:string|null;children:ReactNode}) {
-  const [verified,setVerified] = useState<string|null>(null);
-  useEffect(() => {
-    setVerified(null);
-    if (!member) return;
-    const controller = new AbortController();
-    fetch('/api/me/admin',{signal:controller.signal}).then(async r => {
-      if (r.ok && (await r.json()).admin && !controller.signal.aborted) setVerified(member);
-    }).catch(() => {});
-    return () => controller.abort();
-  },[member]);
-  const active = !!member && verified === member;
-  return <Admin.Provider value={active}>{active && <p>관리자로 로그인했습니다.</p>}{children}</Admin.Provider>;
-}
 const forms = {
   upcoming:['title','source_url'],
   news:['title','summary','category','source_name','source_url'],
@@ -38,20 +23,19 @@ function display(k:string,v:unknown) {
   if (fieldType(k) === 'datetime-local') return new Date(Date.parse(String(v))+9*3600000).toISOString().slice(0,16);
   return String(v);
 }
-export function AdminEdit({section,row}:{section:keyof typeof forms; row:Record<string,unknown>}) {
-  const admin = useContext(Admin);
+export function AdminEdit({section,row,onSaved}:{onSaved:()=>void; section:keyof typeof forms; row:Record<string,unknown>}) {
   const id = useId();
   const [original,setOriginal] = useState<typeof row|null>(null);
   const [dates,setDates] = useState<Release[]>([]);
   const [busy,setBusy] = useState(false);
   const [message,setMessage] = useState('');
-  if (!admin || !row.admin_id) return null;
+  if (!row.admin_id) return null;
   async function write(patch:Record<string,unknown>|null) {
     setBusy(true); setMessage('');
     try {
       const r = await fetch('/api/admin/content/'+section+'/'+row.admin_id,{method:patch?'PUT':'DELETE',headers:{'Content-Type':'application/json'},body:patch?JSON.stringify(patch):undefined});
       if (!r.ok) throw Error(r.status === 403 || r.status === 401 ? '관리자 로그인을 확인해 주세요.' : r.status === 400 ? '입력값과 HTTPS 링크를 확인해 주세요.' : '저장하지 못했습니다. 서버 DB 설정을 확인해 주세요.');
-      window.location.reload();
+      setOriginal(null); setBusy(false); onSaved();
     } catch(e) {setMessage(e instanceof Error ? e.message : '저장하지 못했습니다.');setBusy(false);}
   }
   function submit(e:FormEvent<HTMLFormElement>) {

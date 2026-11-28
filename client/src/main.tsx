@@ -1,4 +1,4 @@
-import { AdminEdit, AdminAccess } from './AdminEdit';
+import { AdminAccess } from './AdminDashboard';
 import { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Deals } from './Deals';
@@ -143,7 +143,6 @@ function Recommendations({ games }: { games: Game[] }) {
       {!group.length && <p>등록된 추천 게임이 없습니다.</p>}
       <ul className="games">{group.map(game => <li className="game" key={game.slot}>
         <h3>{game.title}</h3>
-        <AdminEdit section="upcoming" row={game} />
         {!game.releases.length && <p>출시일 미정</p>}
         {game.releases.map(r => <p key={r.platform}>{r.platform} · {r.confirmed_released ? '출시 완료' : <ReleaseStatus date={r.release_date} year={r.release_year} link={!game.manual_releases && r.platform === 'Steam' ? game.source_url : undefined} />}</p>)}
         <a href={game.source_url} target="_blank" rel="noopener noreferrer">출처 보기</a>
@@ -152,8 +151,7 @@ function Recommendations({ games }: { games: Game[] }) {
   })}</>;
 }
 
-function App() {
-  const [member,setMember] = useState<string | null>(null);
+function Home({member}:{member:string|null}) {
   const [list, setList] = useState<GameList>({ status: 'loading' });
   const [attempt, setAttempt] = useState(0);
 
@@ -176,9 +174,7 @@ function App() {
   }, [attempt]);
 
   return (
-    <main>
-      <Account onMember={setMember} />
-      <AdminAccess member={member}>
+    <>
       <h1>출시 예정 게임</h1>
       {list.status === 'loading' && <p role="status">게임 목록을 불러오는 중입니다.</p>}
       {list.status === 'error' && (
@@ -197,9 +193,15 @@ function App() {
       <Deals />
       <EsportsEvents member={member} />
       <IndustryNews />
-      </AdminAccess>
-    </main>
+    </>
   );
+}
+
+function App() {
+  const [member,setMember] = useState<string | null>(null);
+  return <main><Account onMember={setMember} />
+    <AdminAccess key={member ?? 'guest'} member={member}><Home member={member} /></AdminAccess>
+  </main>;
 }
 
 createRoot(document.getElementById('root')!).render(<App />);

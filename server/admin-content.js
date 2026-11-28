@@ -36,7 +36,23 @@ export function mountAdmin(app, pool, requireMember) {
   const adminId = process.env.GAME_ADMIN_USER_ID?.trim();
   const isAdmin = res => !!adminId && res.locals.member === adminId;
   app.get('/api/me/admin', requireMember, (_req,res) => res.json({ admin:isAdmin(res) }));
-  app.use('/api/admin/content', requireMember, (_req,res,next) => isAdmin(res) ? next() : res.sendStatus(403));
+  app.use('/api/admin', requireMember, (_req,res,next) => isAdmin(res) ? next() : res.sendStatus(403));
+  app.get('/api/admin/members', async (req,res) => {
+    const offset = Number(req.query.offset ?? 0);
+    const search = req.query.q ?? '';
+    if (!Number.isSafeInteger(offset) || offset < 0 || typeof search !== 'string' || search.length > 200) return res.sendStatus(400);
+    const result = await pool.query(`select u.id,u.name,u.email,u."createdAt",
+      array(select distinct a."providerId" from game_auth.account a where a."userId"=u.id order by 1) as providers
+      from game_auth."user" u where strpos(lower(u.name),lower($1))>0 or strpos(lower(u.email),lower($1))>0 or $1=''
+      order by u."createdAt" desc,u.id limit 31 offset $2`, [search.trim(),offset]);
+    res.json({members:result.rows.slice(0,30).map(user => ({...user, admin:user.id===adminId})),more:result.rows.length>30});
+  });
+  app.patch('/api/admin/members/:id', express.json({limit:'2kb'}), async (req,res) => {
+    const name = req.body?.name;
+    if (typeof name !== 'string' || !name.trim() || name.trim().length > 60) return res.sendStatus(400);
+    const result = await pool.query('update game_auth."user" set name=$1,"updatedAt"=now() where id=$2 returning id',[name.trim(),req.params.id]);
+    res.sendStatus(result.rowCount ? 204 : 404);
+  });
   const path = '/api/admin/content/:section/:id';
   app.use(path, (req,res,next) => Object.hasOwn(fields,req.params.section) && /^[a-f0-9]{64}$/.test(req.params.id) ? next() : res.sendStatus(400));
   app.put(path, express.json({limit:'24kb'}), async (req,res) => {
