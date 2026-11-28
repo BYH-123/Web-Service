@@ -181,7 +181,7 @@ export function Deals() {
               <ul key={batch} className="deal-list" aria-label={`${stores[key]} 할인 상품`} tabIndex={0}>
                 {visible.map((deal) => (
                   <li className="game" key={JSON.stringify([deal.store, deal.product_id, deal.offer_type])}>
-                    <GameCover section="deals" item={deal} url={deal.product_url} /><p>{offerLabels[deal.offer_type]}</p>
+                    <GameCover imageUrl={deal.image_url} url={deal.product_url} /><p>{offerLabels[deal.offer_type]}</p>
                     <h4>{deal.title}</h4>
                     <p>
                       {deal.original_price !== null && <><del>{won.format(deal.original_price)}원</del>{' '}</>}

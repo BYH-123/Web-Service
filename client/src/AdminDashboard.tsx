@@ -1,5 +1,4 @@
-import { ReportContext, ReportForm, ReportInbox } from './Reports';
-import type { Target } from './Reports';
+import { ReportForm, ReportInbox } from './Reports';
 import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
 import { AdminEdit } from './AdminEdit';
@@ -123,13 +122,12 @@ export function AdminAccess({member,children}:{member:string|null;children:React
   },[member]);
   const active = !!member && verified === member;
   const [support,setSupport] = useState(false);
-  const [target,setTarget] = useState<Target|null>(null);
-  return <ReportContext.Provider value={item=>{setTarget(item);setSupport(true);}}>
+  return <>
     <nav className="admin-tabs" aria-label="화면 선택">
       <button aria-pressed={!support && !management} onClick={()=>{setSupport(false);setManagement(false);}}>게임 정보</button>
-      <button aria-pressed={support} onClick={()=>{setTarget(null);setSupport(true);}}>신고·문의</button>
+      <button aria-pressed={support} onClick={()=>setSupport(true)}>신고·문의</button>
       {active && <button aria-pressed={!support && management} onClick={()=>{setSupport(false);setManagement(true);}}>관리자 센터</button>}
     </nav>
-    {support ? <ReportForm key={target?.itemTitle??'general'} target={target}/> : active && management ? <AdminDashboard /> : children}
-  </ReportContext.Provider>;
+    {support ? <ReportForm /> : active && management ? <AdminDashboard /> : children}
+  </>;
 }
