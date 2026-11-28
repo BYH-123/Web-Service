@@ -22,6 +22,7 @@ const app = express();
 mountAuth(app);
 const gameNews = createGameNewsCache();
 const todayMatches = createTodayMatches(process.env.PANDASCORE_API_TOKEN);
+const cs2Matches = createTodayMatches(process.env.PANDASCORE_API_TOKEN, fetch, Date.now, { cs2Only: true });
 
 // Cache store checks across cards and coalesce simultaneous requests.
 const steamStatus = new Map();
@@ -161,6 +162,14 @@ const pglMatchBroadcast = {
 
 app.get('/api/esports-events', async (request, response) => {
   response.set('Cache-Control', 'no-store');
+  if (request.query.today === '1' && request.query.game === 'cs2') {
+    try {
+      return response.json(await cs2Matches.getMatches());
+    } catch (error) {
+      console.warn('CS2 schedule unavailable:', error.message);
+      return response.status(502).json({ error: 'CS2 경기 일정을 불러오지 못했습니다.' });
+    }
+  }
   if (request.query.today === '1') {
     const matches = await todayMatches.getMatches();
     const now = Date.now();

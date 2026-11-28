@@ -19,18 +19,20 @@ function httpsUrl(value) {
   return url?.protocol === 'https:' ? url.href : null;
 }
 
-export function createTodayMatches(token, fetchMatches = fetch, now = Date.now) {
+export function createTodayMatches(token, fetchMatches = fetch, now = Date.now, { cs2Only = false } = {}) {
   let cachedDay;
   let nextRefresh = 0;
   let pending;
+  const refreshMs = cs2Only ? 20_000 : 60_000;
+  const scheduleField = cs2Only ? 'scheduled_at' : 'begin_at';
 
   async function collect(start, running) {
     const end = start + dayMs;
     const matches = new Map();
     for (let page = 1; ; page++) {
-      const url = new URL(running ? 'https://api.pandascore.co/matches/running' : 'https://api.pandascore.co/matches');
+      const url = new URL(`https://api.pandascore.co/${cs2Only ? 'csgo/' : ''}matches${running ? '/running' : ''}`);
       url.search = new URLSearchParams({
-        ...(running ? {} : { 'range[begin_at]': [start, end - 1000].map((time) => new Date(time).toISOString()).join(',') }),
+        ...(running ? {} : { [`range[${scheduleField}]`]: [start, end - 1].map((time) => new Date(time).toISOString()).join(',') }),
         'page[number]': String(page),
         'page[size]': '100',
         sort: 'begin_at,id',
@@ -45,8 +47,8 @@ export function createTodayMatches(token, fetchMatches = fetch, now = Date.now) 
       if (!Array.isArray(rows)) throw new Error('Invalid PandaScore match list');
 
       for (const match of rows) {
-        const game = gameNames[match.videogame?.slug] ?? (match.videogame?.id === 3 ? 'CS2' : undefined);
-        const startsAt = Date.parse(match.begin_at ?? match.scheduled_at);
+        const game = cs2Only ? 'CS2' : gameNames[match.videogame?.slug] ?? (match.videogame?.id === 3 ? 'CS2' : undefined);
+        const startsAt = Date.parse(match[scheduleField] ?? match.begin_at ?? match.scheduled_at);
         if (typeof game !== 'string' || !Number.isInteger(match.id) ||
             !match.name || !Number.isFinite(startsAt) || (!running && !(startsAt >= start && startsAt < end)) ||
             ['canceled', 'postponed'].includes(match.status)) continue;
@@ -60,6 +62,8 @@ export function createTodayMatches(token, fetchMatches = fetch, now = Date.now) 
           game,
           title: match.name,
           starts_at: new Date(startsAt).toISOString(),
+          league: match.league?.name ?? null,
+          status: running ? 'running' : match.status,
           event_url: httpsUrl(match.league?.url),
           watch_url: urls[0] ?? null,
           streams: urls,
@@ -75,13 +79,18 @@ export function createTodayMatches(token, fetchMatches = fetch, now = Date.now) 
   }
 
   async function getMatches() {
-    if (!token) return [];
-    const day = koreaDayStart(now());
-    if (cachedDay === day && now() < nextRefresh) return pending;
+    if (!token) {
+      if (cs2Only) throw new Error('PANDASCORE_API_TOKEN is missing');
+      return [];
+    }
+    const time = now();
+    const day = koreaDayStart(time);
+    if (cachedDay === day && time < nextRefresh) return pending;
 
     cachedDay = day;
-    nextRefresh = now() + 60_000;
+    nextRefresh = time + refreshMs;
     pending = Promise.allSettled([collect(day, false), collect(day, true)]).then(results => {
+      if (cs2Only && results[0].status === 'rejected') throw results[0].reason;
       const matches = new Map();
       for (const result of results) {
         if (result.status === 'rejected') { console.warn('Esports schedule unavailable:', result.reason.message); continue; }
