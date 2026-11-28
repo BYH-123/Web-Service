@@ -68,7 +68,8 @@ Steam 목록을 읽는 데 필요한 패키지를 설치하려면 `server` 폴�
 운영자가 등록한 대회는 `public.esports_events`의 `featured_order`로 순서를 지정합니다.
 기존 순서 제한을 풀려면 Supabase SQL Editor에서 `server/esports-events.sql`을 다시 실행합니다.
 
-로그인한 회원은 게임 이름과 YouTube 또는 치지직 주소로 계정당 관심 종목을 최대 3개 추가할 수 있습니다. 등록한 종목은 `game_auth.esports_preferences`에 저장합니다.
+로그인한 회원은 기본 종목과 직접 등록한 종목을 합쳐 관심 종목을 최대 3개 선택합니다. 회원 화면에는 선택한 종목의 일정과 방송을 보여줍니다.
+직접 등록은 게임 이름과 YouTube 또는 치지직 주소를 받습니다. 등록한 종목과 현재 선택은 `game_auth.esports_preferences`에 저장합니다.
 YouTube 개별 영상·라이브 주소는 카드 안에서 재생되고 채널 주소는 해당 채널에서 엽니다. 치지직 클립은 카드 안에서, 라이브·다시보기는 치지직에서 시청합니다.
 직접 등록한 링크는 대회 일정 조회에 사용하지 않습니다.
 

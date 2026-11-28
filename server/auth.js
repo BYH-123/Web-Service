@@ -7,6 +7,7 @@ import { mountAdmin } from './admin-content.js';
 const sessionSeconds = 60 * 60;
 const esportsPreferences = '/api/me/esports';
 const esportsGames = ['CS2', '리그 오브 레전드', '발로란트', '배틀그라운드'];
+const selectableEsportsGames = [...esportsGames, '오버워치', '이터널 리턴', '도타 2', '로켓 리그'];
 const broadcastUrl = /^https:\/\/(?:www\.youtube\.com\/watch\?v=[\w-]{11}|chzzk\.naver\.com\/(?:live\/[a-f0-9]{32}\/?|video\/\d+\/?|clips\/[\w-]+))$/i;
 const youtubeChannelPath = /^\/(?:@(?:[\w.-]|%[\da-f]{2})+|(?:channel|c|user)\/[\w.-]+)(?:\/(?:live|streams))?$/i;
 
@@ -132,17 +133,31 @@ export function mountAuth(app) {
   app.put(esportsPreferences, express.json({ limit: '8kb' }), async (req, res) => {
     const settings = parseEsportsPreferences(req.body);
     if (!settings) return res.sendStatus(400);
-    const result = await pool.query(`insert into game_auth.esports_preferences as p (user_id, settings)
-      values ($1, $2::jsonb) on conflict (user_id) do update set settings = p.settings || excluded.settings
-      where (select count(*) from (
-        select jsonb_object_keys(coalesce(p.settings->'customGames', '{}'::jsonb)) as name
-        union
-        select lower(normalize(btrim(slot->>'title'), NFKC))
-        from jsonb_array_elements(excluded.settings->'slots') as slot where slot ? 'url'
-      ) as registered) <= 3`,
+    await pool.query(`insert into game_auth.esports_preferences as p (user_id, settings)
+      values ($1, $2::jsonb) on conflict (user_id) do update set settings = p.settings || excluded.settings`,
     [res.locals.member, JSON.stringify(settings)]);
-    if (!result.rowCount) return res.sendStatus(409);
     res.json(settings);
+  });
+  app.put(esportsPreferences + '/selection', express.json({ limit: '8kb' }), async (req, res) => {
+    const { selectedGames } = req.body ?? {};
+    if (!Array.isArray(selectedGames) || selectedGames.length > 3 ||
+        selectedGames.some(game => typeof game !== 'string') || new Set(selectedGames).size !== selectedGames.length) {
+      return res.sendStatus(400);
+    }
+    const member = res.locals.member;
+    const result = await pool.query('select settings from game_auth.esports_preferences where user_id=$1', [member]);
+    const settings = result.rows[0]?.settings;
+    const available = new Set(selectableEsportsGames);
+    for (const key of Object.keys(settings?.customGames ?? {})) available.add('custom:' + key);
+    for (const slot of settings?.slots ?? []) {
+      if (slot?.url) available.add('custom:' + slot.title.trim().normalize('NFKC').toLowerCase());
+    }
+    if (!selectedGames.every(game => available.has(game))) return res.sendStatus(400);
+    await pool.query(`insert into game_auth.esports_preferences as p (user_id, settings)
+      values ($1, jsonb_build_object('selectedGames', $2::jsonb))
+      on conflict (user_id) do update set settings = p.settings || excluded.settings`,
+    [member, JSON.stringify(selectedGames)]);
+    res.json({ selectedGames });
   });
   app.post(esportsPreferences + '/games', express.json({ limit: '2kb' }), async (req, res) => {
     const { name, url } = req.body ?? {};
@@ -157,12 +172,7 @@ export function mountAuth(app) {
       values ($1, jsonb_build_object('customGames', jsonb_build_object($2::text, $3::jsonb)))
       on conflict (user_id) do update set settings = jsonb_set(p.settings, '{customGames}',
         coalesce(p.settings->'customGames', '{}'::jsonb) || (excluded.settings->'customGames'))
-      where (select count(*) < 3 and count(*) filter (where name = $2) = 0 from (
-        select jsonb_object_keys(coalesce(p.settings->'customGames', '{}'::jsonb)) as name
-        union
-        select lower(normalize(btrim(slot->>'title'), NFKC))
-        from jsonb_array_elements(p.settings->'slots') as slot where slot ? 'url'
-      ) as registered)
+      where not coalesce(p.settings->'customGames', '{}'::jsonb) ? $2
       returning settings->'customGames' as games`,
     [res.locals.member, key, JSON.stringify(game)]);
     if (!result.rowCount) return res.sendStatus(409);
