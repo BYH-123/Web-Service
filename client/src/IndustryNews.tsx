@@ -17,6 +17,7 @@ const publishedDate = new Intl.DateTimeFormat('ko-KR', {
 });
 
 export function IndustryNews() {
+  const [category,setCategory] = useState('');
   const [articles, setArticles] = useState<Article[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
@@ -48,9 +49,12 @@ export function IndustryNews() {
     };
   }, [attempt]);
 
+  const categories = [...new Set(articles?.map(article=>article.category).filter(Boolean))];
+  const activeCategory = categories.includes(category) ? category : '';
   return (
     <section className="industry-news" aria-labelledby="industry-news-heading">
       <h2 id="industry-news-heading">게임 뉴스</h2>
+      {categories.length > 0 && <div className="region-tabs" aria-label="뉴스 분류">{['',...categories].map(key=><button key={key} aria-pressed={activeCategory===key} onClick={()=>setCategory(key)}>{key || '전체'}</button>)}</div>}
       {articles === null && !failed && <p role="status">뉴스를 불러오는 중입니다.</p>}
       {failed && (
         <div>
@@ -64,7 +68,7 @@ export function IndustryNews() {
       {articles?.length === 0 && <p>표시할 뉴스가 없습니다.</p>}
       {articles && articles.length > 0 && (
         <ul className="industry-news-list">
-          {articles.map((article) => (
+          {articles.filter(article=>!activeCategory || article.category===activeCategory).map((article) => (
             <li key={article.source_url} className="game">
               <p>{article.category} · {article.source_name} ·{' '}
                 <time dateTime={article.published_at}>{publishedDate.format(new Date(article.published_at))}</time>

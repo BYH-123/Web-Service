@@ -25,7 +25,7 @@ function display(k:string,v:unknown) {
 }
 export function AdminEdit({section,row,onSaved}:{onSaved:()=>void; section:keyof typeof forms; row:Record<string,unknown>}) {
   const id = useId();
-  const [original,setOriginal] = useState<typeof row|null>(null);
+  const [original,setOriginal] = useState<typeof row|null>(row);
   const [dates,setDates] = useState<Release[]>([]);
   const [busy,setBusy] = useState(false);
   const [message,setMessage] = useState('');

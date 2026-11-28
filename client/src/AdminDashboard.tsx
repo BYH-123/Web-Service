@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
 import { AdminEdit } from './AdminEdit';
 
-const sections = {members:'회원 관리',upcoming:'출시 예정 게임',deals:'할인·프로모션',esports:'대회·방송',news:'게임 뉴스'};
+const sections = {members:'회원 관리',upcoming:'출시 예정 게임',deals:'할인·프로모션',esports:'e스포츠 대회 중계',news:'게임 뉴스'};
 type Section = keyof typeof sections;
 type Row = Record<string,unknown>;
 type Member = {id:string;name:string;email:string;createdAt:string;admin:boolean;providers:string[]};
@@ -44,6 +44,7 @@ function Manager({section}:{section:Section}) {
   const [members,setMembers] = useState<Member[]>([]);
   const [more,setMore] = useState(false);
   const [status,setStatus] = useState('loading');
+  const [selected,setSelected] = useState('');
   const refresh = ()=>setRevision(n=>n+1);
   useEffect(()=>{
     const controller = new AbortController();
@@ -70,6 +71,8 @@ function Manager({section}:{section:Section}) {
     return ()=>controller.abort();
   },[section,query,offset,revision]);
   const visible = rows.filter(r=>[r.title,r.game,r.store,r.source_name].some(v=>String(v??'').toLowerCase().includes(text.trim().toLowerCase())));
+  const selectedMember = members.find(u=>u.id===selected) ?? members[0];
+  const selectedRow = visible.find((r,i)=>String(r.admin_id??i)===selected) ?? visible[0];
   return <section aria-label={sections[section]}><h2>{sections[section]}</h2>
     <form className="admin-search" onSubmit={e=>{e.preventDefault();setOffset(0);setQuery(text.trim());}}>
       <label>{section==='members'?'닉네임·이메일 검색':'항목 검색'} <input type="search" value={text} onChange={e=>setText(e.target.value)}/></label>
@@ -79,15 +82,16 @@ function Manager({section}:{section:Section}) {
       <p role="alert">목록을 불러오지 못했습니다. <button onClick={refresh}>다시 시도</button></p> :
       section==='members' ? <>
         {!members.length && <p>조회된 회원이 없습니다.</p>}
-        <ul className="admin-list">{members.map(u=><MemberRow key={u.id} user={u} refresh={refresh}/>)}</ul>
+        <div className="management-grid"><ul className="admin-list">{members.map(u=><li key={u.id}><button aria-pressed={selectedMember?.id===u.id} onClick={()=>setSelected(u.id)}><strong>{u.name}</strong><span>{u.email}</span><small>{u.admin?'관리자':'회원'}</small></button></li>)}</ul>
+        {selectedMember && <aside><h3>회원 정보 수정</h3><ul className="member-detail"><MemberRow key={selectedMember.id} user={selectedMember} refresh={refresh}/></ul></aside>}</div>
         {(offset>0 || more) && <div className="admin-tabs"><button disabled={!offset} onClick={()=>setOffset(offset-30)}>이전</button>
         <span>{Math.floor(offset/30)+1}페이지</span><button disabled={!more} onClick={()=>setOffset(offset+30)}>다음</button></div>}
       </> : <>
         {!visible.length && <p>표시할 항목이 없습니다.</p>}
-        <ul className="admin-list">{visible.map((row,i)=><li key={String(row.admin_id??i)}>
-          <div><strong>{String(row.title)}</strong><small>{[row.store,row.game,row.source_name,row.audience==='global'?'글로벌 추천':row.audience==='kr'?'국내 추천':'',row.admin_edited?'관리자 수정됨':''].filter(Boolean).join(' · ')}</small></div>
-          {row.admin_id ? <AdminEdit section={section} row={row} onSaved={refresh}/> : <small>관리자 DB 설정 필요</small>}
-        </li>)}</ul>
+        <div className="management-grid"><ul className="admin-list">{visible.map((row,i)=><li key={String(row.admin_id??i)}>
+          <button aria-pressed={row===selectedRow} onClick={()=>setSelected(String(row.admin_id??i))}><strong>{String(row.title)}</strong><small>{[row.store,row.game,row.source_name,row.audience==='global'?'글로벌 추천':row.audience==='kr'?'국내 추천':''].filter(Boolean).join(' · ')}</small></button>
+        </li>)}</ul>{selectedRow && <aside><h3>{sections[section]} 정보 수정</h3><p>{String(selectedRow.title)}</p>
+          {selectedRow.admin_id ? <AdminEdit key={String(selectedRow.admin_id)} section={section} row={selectedRow} onSaved={refresh}/> : <small>관리자 DB 설정 필요</small>}</aside>}</div>
       </>}
   </section>;
 }

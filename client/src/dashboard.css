@@ -1,0 +1,40 @@
+:root{color-scheme:dark;--bg:#090f1e;--panel:#151f32;--line:#314056;--ink:#eef5ff;--muted:#adbbce;--accent:#22e1ef}
+*{box-sizing:border-box}
+html{scroll-padding-top:1rem}
+body{background:var(--bg);color:var(--ink);font:15px/1.55 system-ui,sans-serif}
+main{max-width:1480px;padding:0 clamp(12px,3vw,46px) 32px}
+.mast{display:flex;align-items:center;gap:2rem;min-height:68px;flex-wrap:wrap;border-bottom:1px solid var(--line);margin-bottom:16px;padding:10px 0}
+.brand{font-size:1.85rem;font-weight:850;letter-spacing:-.06em;color:white;text-decoration:none}
+.brand span,a,.game a{color:var(--accent)}
+.mast nav,.region-tabs{display:flex;gap:6px;flex-wrap:wrap}
+.mast nav a{color:var(--muted);text-decoration:none;padding:6px 12px;font-weight:650}
+.mast nav a:hover{color:var(--accent)}
+.mast .account{margin-left:auto}
+main:has(.admin-dashboard) .mast nav{display:none}
+.dashboard{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start}
+.dashboard>section,.admin-dashboard>section,.management-grid aside{min-width:0;margin:0;padding:clamp(14px,1.8vw,26px);background:linear-gradient(145deg,#1a2539,#111b2c);border:1px solid var(--line);border-radius:10px}
+h1,h2,h3,h4{line-height:1.3;margin:0 0 .7rem;letter-spacing:-.035em}
+button,select,input,textarea,.admin-tabs button,.admin-dashboard button,.esports-game-picker button{font:inherit;color:var(--ink);background:#101a2b;border:1px solid var(--line);border-radius:5px;padding:.4rem .7rem}
+button{cursor:pointer}button:disabled{opacity:.55}button:hover{border-color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button[aria-pressed=true],.admin-tabs button[aria-pressed=true],.esports-game-picker button[aria-pressed=true]{background:#103a49;color:var(--accent);border-color:var(--accent)}
+.region-tabs button{flex:1}.region-tabs button[aria-pressed=true]{background:var(--accent);color:#051321}
+.games{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.game{border-color:var(--line);background:#101a2b;overflow:hidden;padding:12px;gap:.45rem;overflow-wrap:anywhere}
+.game p,.admin-list small,.news-preview,.esports-schedule-match span,.esports-settings #esports-url-help,.esports-schedule-header h3 span{color:var(--muted)}
+.cover{width:100%;object-fit:cover;aspect-ratio:2.14}
+.upcoming .cover{width:calc(100% + 24px);max-width:none;margin:-12px -12px 3px;aspect-ratio:1.3}
+.deals,.industry-news,.upcoming{max-height:410px;overflow:auto;scrollbar-color:#415369 transparent}
+.deal-list{max-height:none}.deal-store{margin-top:.75rem}
+.deal-list .game{display:block;min-height:64px}.deal-list .cover{float:left;width:28%;margin:0 12px 6px 0}
+.deal-list p,.deal-list a,.industry-news-list p{font-size:.82rem}.discount{display:inline-block;background:#ace64c;color:#192d0a;padding:0 5px;border-radius:3px;margin-left:6px}
+.esports-player{min-height:0}.esports-schedule-row:hover,.esports-schedule-row[aria-pressed=true]{background:#183344}.esports-schedule-row[aria-pressed=true] strong,.esports-schedule-actions button{color:var(--accent)}
+.admin-dashboard{display:grid;grid-template-columns:190px minmax(0,1fr);gap:12px}
+.admin-dashboard h1{grid-column:1/-1}.admin-dashboard>nav{display:flex;flex-direction:column;align-items:stretch;align-self:start;margin:0}.admin-dashboard>nav button{text-align:left}
+.management-grid{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:14px;align-items:start}
+.admin-list,.member-detail{margin:0;padding:0;list-style:none;background:transparent;max-height:68vh;overflow:auto}
+.admin-list li{padding:0;border:0}.admin-list button{width:100%;display:grid;gap:3px;text-align:left;padding:10px 14px}
+.admin-list span{font-size:.85rem;color:var(--muted)}.management-grid aside{background:#192539}.management-grid aside label,.member-detail small{display:block;margin:.45rem 0}
+.management-grid input{max-width:100%}.management-grid fieldset{min-width:0;border:1px solid var(--line)}
+@media(max-width:800px){.dashboard,.management-grid,.admin-dashboard{grid-template-columns:1fr}.admin-dashboard>nav{flex-direction:row;flex-wrap:wrap}.mast{gap:.5rem}.mast nav{order:3;width:100%}.mast nav a{padding:4px 8px}.admin-list{max-height:38vh}.deals,.industry-news,.upcoming{max-height:32rem}}
+@media(max-width:480px){.games{grid-template-columns:repeat(2,minmax(0,1fr))}}

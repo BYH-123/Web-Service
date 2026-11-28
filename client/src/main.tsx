@@ -6,6 +6,8 @@ import { IndustryNews } from './IndustryNews';
 import { EsportsEvents } from './EsportsEvents';
 import { Account } from './Account';
 import './style.css';
+import './dashboard.css';
+import { GameCover } from './GameCover';
 
 type Game = {
   slot: number;
@@ -136,19 +138,20 @@ function MyUpcomingGames() {
 }
 
 function Recommendations({ games }: { games: Game[] }) {
-  return <>{(['global','kr'] as const).map(area => {
-    const group = games.filter(game => game.audience === area);
-    return <section key={area}>
-      <h2>{area === 'global' ? '글로벌 추천' : '국내 추천'}</h2>
+  const [area, setArea] = useState<'global'|'kr'>('global');
+  const group = games.filter(game => game.audience === area);
+  return <><div className="region-tabs" aria-label="추천 지역">
+    {(['global','kr'] as const).map(key => <button key={key} aria-pressed={area===key} onClick={()=>setArea(key)}>{key==='global'?'글로벌':'국내'}</button>)}
+  </div>
       {!group.length && <p>등록된 추천 게임이 없습니다.</p>}
       <ul className="games">{group.map(game => <li className="game" key={game.slot}>
+        <GameCover url={game.source_url} />
         <h3>{game.title}</h3>
         {!game.releases.length && <p>출시일 미정</p>}
         {game.releases.map(r => <p key={r.platform}>{r.platform} · {r.confirmed_released ? '출시 완료' : <ReleaseStatus date={r.release_date} year={r.release_year} link={!game.manual_releases && r.platform === 'Steam' ? game.source_url : undefined} />}</p>)}
         <a href={game.source_url} target="_blank" rel="noopener noreferrer">출처 보기</a>
       </li>)}</ul>
-    </section>;
-  })}</>;
+    </>;
 }
 
 function Home({member}:{member:string|null}) {
@@ -174,8 +177,8 @@ function Home({member}:{member:string|null}) {
   }, [attempt]);
 
   return (
-    <>
-      <h1>출시 예정 게임</h1>
+    <div className="dashboard">
+      <section id="upcoming" className="upcoming"><h2>출시 예정 게임</h2>
       {list.status === 'loading' && <p role="status">게임 목록을 불러오는 중입니다.</p>}
       {list.status === 'error' && (
         <div>
@@ -190,16 +193,17 @@ function Home({member}:{member:string|null}) {
         <Recommendations games={list.games} />
       )}
       {member && <MyUpcomingGames key={member} />}
+      </section>
       <Deals />
       <EsportsEvents member={member} />
       <IndustryNews />
-    </>
+    </div>
   );
 }
 
 function App() {
   const [member,setMember] = useState<string | null>(null);
-  return <main><Account onMember={setMember} />
+  return <main><header className="mast"><a className="brand" href="./">Game<span>Info</span></a><nav aria-label="게임 정보 바로가기">{[['upcoming','출시 예정'],['deals-heading','할인'],['esports-heading','e스포츠'],['industry-news-heading','뉴스']].map(([id,name])=><a href={'#'+id} key={id}>{name}</a>)}</nav><Account onMember={setMember} /></header>
     <AdminAccess key={member ?? 'guest'} member={member}><Home member={member} /></AdminAccess>
   </main>;
 }
