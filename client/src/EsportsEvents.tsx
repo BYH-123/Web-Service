@@ -218,7 +218,7 @@ type Settings = {
 type Schedule = { matches: EsportsEvent[]; scheduleAvailable: boolean; liveAvailable: boolean };
 
 const games = ['CS2', '리그 오브 레전드', '발로란트', '배틀그라운드', '오버워치', '이터널 리턴', '도타 2', '로켓 리그'];
-const guestGamesKey = 'esports-custom-games';
+const customGameLimit = 3;
 const officialChannels: Record<string, string> = {
   '오버워치': 'https://www.youtube.com/@ow_esports_kr/streams',
   '이터널 리턴': 'https://www.youtube.com/@EternalReturnKR/streams',
@@ -226,11 +226,6 @@ const officialChannels: Record<string, string> = {
 
 function gameKey(name: string) {
   return name.trim().normalize('NFKC').toLowerCase();
-}
-
-function readGuestGames(): Record<string, CustomGame> {
-  try { return JSON.parse(localStorage.getItem(guestGamesKey) ?? '{}') ?? {}; }
-  catch { return {}; }
 }
 
 function cleanTitle(title: string) {
@@ -333,7 +328,7 @@ function EsportsBoard({ member, featured, matches, now, schedule, refresh }: {
   member: string | null; featured: EsportsEvent[]; matches: EsportsEvent[]; now: number;
   schedule: Schedule | null; refresh: () => void;
 }) {
-  const [settings, setSettings] = useState<Settings | null>(() => member ? null : { customGames: readGuestGames() });
+  const [settings, setSettings] = useState<Settings | null>(null);
   const [settingsError, setSettingsError] = useState(false);
   const [settingsAttempt, setSettingsAttempt] = useState(0);
   const [adding, setAdding] = useState(false);
@@ -367,6 +362,8 @@ function EsportsBoard({ member, featured, matches, now, schedule, refresh }: {
   }
   const favoriteGames = (settings?.games ?? []).filter(game => games.includes(game));
   const gameOptions = [...new Set([...favoriteGames, ...games])];
+  const customEntries = Object.entries(customGames).slice(0, customGameLimit);
+  const limitReached = customEntries.length === customGameLimit;
 
   function chooseGame(game: string) {
     setSelectedGame(game);
@@ -375,6 +372,7 @@ function EsportsBoard({ member, featured, matches, now, schedule, refresh }: {
 
   async function addGame(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!member || !settings || limitReached) return;
     setAddError('');
     const fields = new FormData(event.currentTarget);
     const name = String(fields.get('gameName') ?? '').trim();
@@ -391,20 +389,15 @@ function EsportsBoard({ member, featured, matches, now, schedule, refresh }: {
     const newGame = { name, url: source.url };
     setSaving(true);
     try {
-      let next = { ...settings?.customGames, [key]: newGame };
-      if (member) {
-        const response = await fetch('/api/me/esports/games', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newGame),
-        });
-        if (response.status === 409) {
-          setAddError('이미 관심 종목에 있는 게임입니다.');
-          return;
-        }
-        if (!response.ok) throw new Error();
-        next = await response.json();
-      } else {
-        localStorage.setItem(guestGamesKey, JSON.stringify(next));
+      const response = await fetch('/api/me/esports/games', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newGame),
+      });
+      if (response.status === 409) {
+        setAddError('이미 등록한 종목이거나 직접 추가 한도인 3개에 도달했어요.');
+        return;
       }
+      if (!response.ok) throw new Error();
+      const next: Record<string, CustomGame> = await response.json();
       setSettings(previous => ({ ...previous, customGames: next }));
       chooseGame('custom:' + key);
       setAdding(false);
@@ -441,18 +434,19 @@ function EsportsBoard({ member, featured, matches, now, schedule, refresh }: {
         {gameOptions.map(game => (
           <button type="button" key={game} aria-pressed={selectedGame === game} onClick={() => chooseGame(game)}>{game}</button>
         ))}
-        {Object.entries(customGames).map(([key, game]) => (
+        {customEntries.map(([key, game]) => (
           <button type="button" key={'custom:' + key} aria-pressed={selectedGame === 'custom:' + key}
             onClick={() => chooseGame('custom:' + key)}>{game.name}</button>
         ))}
-        <button type="button" disabled={!settings} aria-expanded={adding} onClick={() => {
+        {member && <button type="button" disabled={!settings || limitReached} aria-expanded={adding} onClick={() => {
           setAddError('');
           setAdding(current => !current);
-        }}>+ 관심 종목 추가</button>
+        }}>+ 관심 종목 추가</button>}
       </div>
+      {member && limitReached && <p>직접 추가하는 관심 종목은 계정당 최대 3개예요.</p>}
       {settingsError && <p role="alert">관심 종목을 불러오지 못했습니다.{' '}
         <button type="button" onClick={() => setSettingsAttempt(current => current + 1)}>다시 시도</button></p>}
-      {adding && (
+      {member && adding && (
         <form className="esports-settings" aria-label="관심 종목 추가" onSubmit={addGame}>
           <label>게임 이름 <input name="gameName" required maxLength={80} disabled={saving} /></label>
           <label>방송 주소 <input name="gameUrl" type="url" required maxLength={500} disabled={saving}

@@ -132,9 +132,16 @@ export function mountAuth(app) {
   app.put(esportsPreferences, express.json({ limit: '8kb' }), async (req, res) => {
     const settings = parseEsportsPreferences(req.body);
     if (!settings) return res.sendStatus(400);
-    await pool.query(`insert into game_auth.esports_preferences as p (user_id, settings)
-      values ($1, $2::jsonb) on conflict (user_id) do update set settings = p.settings || excluded.settings`,
+    const result = await pool.query(`insert into game_auth.esports_preferences as p (user_id, settings)
+      values ($1, $2::jsonb) on conflict (user_id) do update set settings = p.settings || excluded.settings
+      where (select count(*) from (
+        select jsonb_object_keys(coalesce(p.settings->'customGames', '{}'::jsonb)) as name
+        union
+        select lower(normalize(btrim(slot->>'title'), NFKC))
+        from jsonb_array_elements(excluded.settings->'slots') as slot where slot ? 'url'
+      ) as registered) <= 3`,
     [res.locals.member, JSON.stringify(settings)]);
+    if (!result.rowCount) return res.sendStatus(409);
     res.json(settings);
   });
   app.post(esportsPreferences + '/games', express.json({ limit: '2kb' }), async (req, res) => {
@@ -150,7 +157,12 @@ export function mountAuth(app) {
       values ($1, jsonb_build_object('customGames', jsonb_build_object($2::text, $3::jsonb)))
       on conflict (user_id) do update set settings = jsonb_set(p.settings, '{customGames}',
         coalesce(p.settings->'customGames', '{}'::jsonb) || (excluded.settings->'customGames'))
-      where not coalesce(p.settings->'customGames', '{}'::jsonb) ? $2
+      where (select count(*) < 3 and count(*) filter (where name = $2) = 0 from (
+        select jsonb_object_keys(coalesce(p.settings->'customGames', '{}'::jsonb)) as name
+        union
+        select lower(normalize(btrim(slot->>'title'), NFKC))
+        from jsonb_array_elements(p.settings->'slots') as slot where slot ? 'url'
+      ) as registered)
       returning settings->'customGames' as games`,
     [res.locals.member, key, JSON.stringify(game)]);
     if (!result.rowCount) return res.sendStatus(409);
