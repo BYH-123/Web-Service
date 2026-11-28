@@ -11,7 +11,6 @@ type EsportsEvent = {
   broadcast_group?: string;
   league?: string | null;
   series?: string | null;
-  last_day?: string;
   status?: string;
   streams?: string[];
   live?: boolean;
@@ -265,12 +264,9 @@ function EventCard({ card, matches, now, fallback }: {
   const sources = eventSources(event);
   const mayPlay = canOpenBroadcast(event, now) ||
     ((event.kind !== 'match' || event.status === 'finished') && sources.some(source => source.embed));
-  const today = new Date(now + koreaOffsetMs).toISOString().slice(0, 10);
-  const status = event.live ? '진행 중' : event.status === 'finished' || (event.last_day && event.last_day < today) ? '종료'
-    : Date.parse(event.starts_at) > now ? '예정' : event.kind === 'match' ? '시작 확인 중' : '대회 기간';
   return (
     <div className="game esports-event-card">
-      <p>{event.game} · {status}</p>
+      <p>{event.game}</p>
       <h3>{card.title}</h3>
       {match ? <p>{match.title}</p> : event.kind === 'match' && (event.series || event.league) && <p>{event.series || event.league}</p>}
       <p>시작 <time dateTime={event.starts_at}>{dateTime.format(new Date(event.starts_at))}</time> (KST)</p>
@@ -531,7 +527,7 @@ function EsportsBoard({ member, featured, matches, now, schedule, refresh }: {
         <div className="esports-controls">
           <button type="button" aria-label="이전 경기" onClick={() => setSelectedMatch(events[(events.indexOf(card) + events.length - 1) % events.length].slug)}>←</button>
           <select aria-label="대회 또는 경기 선택" value={card.slug} onChange={event => setSelectedMatch(event.target.value)}>
-            {events.map(event => <option key={event.slug} value={event.slug}>{event.title}{event.live ? ' · 진행 중' : ''}</option>)}
+            {events.map(event => <option key={event.slug} value={event.slug}>{event.title}</option>)}
           </select>
           <button type="button" aria-label="다음 경기" onClick={() => setSelectedMatch(events[(events.indexOf(card) + 1) % events.length].slug)}>→</button>
         </div>
@@ -556,13 +552,10 @@ function EsportsBoard({ member, featured, matches, now, schedule, refresh }: {
         {!schedule && <p role="status">경기 일정을 확인하고 있습니다.</p>}
         {schedule && !schedule.scheduleAvailable && <p role="status">오늘 경기 일정을 확인하지 못했습니다.</p>}
         {schedule?.scheduleAvailable && !schedule.liveAvailable && <p role="status">실시간 진행 상태를 확인하지 못했습니다.</p>}
-        {schedule?.scheduleAvailable && !today.length && <p>{selectedGame ? `오늘 예정된 ${selectedGame} 경기가 없습니다.` : '오늘 예정된 경기가 없습니다.'}</p>}
+        {schedule?.scheduleAvailable && !today.length && <p>{selectedGame ? `오늘 ${selectedGame} 경기 일정이 없습니다.` : '오늘 경기 일정이 없습니다.'}</p>}
         {!!today.length && (
           <ul className="esports-schedule-list" role="list" tabIndex={0} aria-labelledby="esports-schedule-heading">
-            {today.map(match => {
-              const status = match.live ? '진행 중' : match.status === 'finished' ? '종료'
-                : Date.parse(match.starts_at) > now ? '예정' : null;
-              return (
+            {today.map(match => (
                 <li key={match.slug}>
                   <button className="esports-schedule-row" type="button"
                     aria-pressed={card?.slug === match.slug} onClick={() => { setSelectedGame(match.game); setSelectedMatch(match.slug); }}>
@@ -571,11 +564,9 @@ function EsportsBoard({ member, featured, matches, now, schedule, refresh }: {
                       <strong>{match.title}</strong>
                       <span>{match.game}{match.league && ` · ${match.league}`}</span>
                     </span>
-                    {status && <span className={match.live ? 'esports-schedule-status is-live' : 'esports-schedule-status'}>{status}</span>}
                   </button>
                 </li>
-              );
-            })}
+            ))}
           </ul>
         )}
       </section>}
