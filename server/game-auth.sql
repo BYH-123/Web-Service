@@ -37,4 +37,9 @@ create table if not exists game_auth.upcoming_preferences (
   cards jsonb not null default '{}'
 );
 revoke all on game_auth.upcoming_preferences from public, anon, authenticated;
+create table if not exists game_auth.esports_preferences (
+  user_id text primary key references game_auth."user"(id) on delete cascade,
+  settings jsonb not null
+);
+revoke all on game_auth.esports_preferences from public, anon, authenticated;
 commit;

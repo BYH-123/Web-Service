@@ -1,14 +1,10 @@
 const dayMs = 86_400_000;
 const koreaOffsetMs = 9 * 60 * 60 * 1000;
-const gameNames = {
-  'cs-go': 'CS2',
-  'counter-strike': 'CS2',
-  'counter-strike-2': 'CS2',
-  cs2: 'CS2',
-  lol: '리그 오브 레전드',
-  'league-of-legends': '리그 오브 레전드',
-  pubg: '배틀그라운드',
-};
+const gameNames = new Map([
+  ['cs-go', 'CS2'], ['counter-strike', 'CS2'], ['counter-strike-2', 'CS2'], ['cs2', 'CS2'],
+  ['lol', '리그 오브 레전드'], ['league-of-legends', '리그 오브 레전드'],
+  ['valorant', '발로란트'], ['pubg', '배틀그라운드'],
+]);
 
 function koreaDayStart(time) {
   return Math.floor((time + koreaOffsetMs) / dayMs) * dayMs - koreaOffsetMs;
@@ -16,110 +12,117 @@ function koreaDayStart(time) {
 
 function httpsUrl(value) {
   const url = typeof value === 'string' ? URL.parse(value) : null;
-  return url?.protocol === 'https:' ? url.href : null;
+  return url?.protocol === 'https:' && !url.username && !url.password ? url.href : null;
 }
 
-export function createTodayMatches(token, fetchMatches = fetch, now = Date.now, { cs2Only = false } = {}) {
-  let cachedDay;
-  let nextRefresh = 0;
-  let pending;
-  const refreshMs = cs2Only ? 20_000 : 60_000;
-  const scheduleField = cs2Only ? 'scheduled_at' : 'begin_at';
+export function createTodayMatches(token, fetchMatches = fetch, now = Date.now) {
+  const schedule = { day: null, until: 0, promise: null };
+  const live = { day: null, until: 0, promise: null };
+  let rateLimitedUntil = 0;
 
   async function collect(start, running) {
     const end = start + dayMs;
-    const matches = new Map();
-    for (let page = 1; ; page++) {
-      const url = new URL(`https://api.pandascore.co/${cs2Only ? 'csgo/' : ''}matches${running ? '/running' : ''}`);
+    const matches = [];
+    for (let page = 1; page <= 10; page++) {
+      if (now() < rateLimitedUntil) throw new Error('PandaScore is rate limited');
+      const url = new URL(running ? 'https://api.pandascore.co/matches/running' : 'https://api.pandascore.co/matches');
       url.search = new URLSearchParams({
-        ...(running ? {} : { [`range[${scheduleField}]`]: [start, end - 1].map((time) => new Date(time).toISOString()).join(',') }),
+        ...(running ? {} : { 'range[scheduled_at]': [start, end - 1].map(time => new Date(time).toISOString()).join(',') }),
         'page[number]': String(page),
         'page[size]': '100',
-        sort: 'begin_at,id',
+        sort: 'scheduled_at,id',
       });
       const response = await fetchMatches(url, {
         headers: { Authorization: `Bearer ${token}` },
         redirect: 'error',
         signal: AbortSignal.timeout(8000),
       });
+      if (response.status === 429) {
+        const retryAfter = response.headers.get('Retry-After');
+        const delay = retryAfter && /^\d+$/.test(retryAfter) ? Number(retryAfter) * 1000 : Date.parse(retryAfter) - now();
+        rateLimitedUntil = Math.max(rateLimitedUntil, now() + (delay > 0 ? delay : 60_000));
+      }
       if (!response.ok) throw new Error(`PandaScore HTTP ${response.status}`);
       const rows = await response.json();
       if (!Array.isArray(rows)) throw new Error('Invalid PandaScore match list');
 
+      // A successful response can supply live status even when the running endpoint is delayed.
       for (const match of rows) {
-        const game = cs2Only ? 'CS2' : gameNames[match.videogame?.slug] ?? (match.videogame?.id === 3 ? 'CS2' : undefined);
-        const startsAt = Date.parse(match[scheduleField] ?? match.begin_at ?? match.scheduled_at);
-        if (typeof game !== 'string' || !Number.isInteger(match.id) ||
-            !match.name || !Number.isFinite(startsAt) || (!running && !(startsAt >= start && startsAt < end)) ||
-            ['canceled', 'postponed'].includes(match.status)) continue;
-
+        const game = gameNames.get(match.videogame?.slug) ?? (match.videogame?.id === 3 ? 'CS2' : undefined);
+        const startsAt = Date.parse(match.scheduled_at ?? match.begin_at);
+        if (!game || !Number.isInteger(match.id) || !match.name || !Number.isFinite(startsAt) ||
+            (!running && (startsAt < start || startsAt >= end)) || ['canceled', 'postponed'].includes(match.status)) continue;
         const streams = Array.isArray(match.streams_list) ? match.streams_list : [];
         const channels = streams.filter(entry => httpsUrl(entry?.raw_url))
           .sort((a, b) => Number(!!b.official) - Number(!!a.official) || Number(b.language === 'ko') - Number(a.language === 'ko'));
-        const urls = [...new Set(channels.map(entry => entry.raw_url))];
-        matches.set(match.id, {
+        const urls = [...new Set(channels.map(entry => httpsUrl(entry.raw_url)))];
+        matches.push({
           slug: `pandascore-${match.id}`,
           game,
           title: match.name,
           starts_at: new Date(startsAt).toISOString(),
           league: match.league?.name ?? null,
-          status: running ? 'running' : match.status,
+          series: match.serie?.full_name ?? null,
           event_url: httpsUrl(match.league?.url),
           watch_url: urls[0] ?? null,
           streams: urls,
           kind: 'match',
-          live: running || match.status === 'running',
+          status: running ? 'running' : match.status,
+          live: running,
         });
       }
-      if (rows.length < 100) break;
-      if (page === 10) throw new Error('PandaScore daily match list exceeded ten pages');
+      if (rows.length < 100) return matches;
     }
-
-    return [...matches.values()].sort((a, b) => a.starts_at.localeCompare(b.starts_at));
+    throw new Error('PandaScore match list exceeded ten pages');
   }
 
-  async function getMatches() {
-    if (!token) {
-      if (cs2Only) throw new Error('PANDASCORE_API_TOKEN is missing');
-      return [];
-    }
-    const time = now();
-    const day = koreaDayStart(time);
-    if (cachedDay === day && time < nextRefresh) return pending;
-
-    cachedDay = day;
-    nextRefresh = time + refreshMs;
-    pending = Promise.allSettled([collect(day, false), collect(day, true)]).then(results => {
-      if (cs2Only && results[0].status === 'rejected') throw results[0].reason;
-      const matches = new Map();
-      for (const result of results) {
-        if (result.status === 'rejected') { console.warn('Esports schedule unavailable:', result.reason.message); continue; }
-        for (const match of result.value) {
-          const previous = matches.get(match.slug);
-          if (previous) {
-            match.streams = [...new Set([...match.streams, ...previous.streams])];
-            match.watch_url = match.streams[0] ?? null;
-          }
-          matches.set(match.slug, match);
-        }
+  function cached(cache, day, interval, running) {
+    if (cache.day === day && cache.promise) return cache.promise;
+    if (cache.day === day && now() < cache.until) return Promise.resolve(cache.data);
+    cache.day = day;
+    const request = collect(day, running).then(data => {
+      if (cache.promise === request) {
+        cache.until = now() + interval;
+        cache.data = { data, ok: true };
       }
-      return [...matches.values()].sort((a,b) => a.starts_at.localeCompare(b.starts_at));
+      return { data, ok: true };
+    }).catch(error => {
+      console.warn('Esports lookup unavailable:', error.message);
+      const result = { data: [], ok: false };
+      if (cache.promise === request) {
+        cache.until = Math.max(now() + 30_000, rateLimitedUntil);
+        cache.data = result;
+      }
+      return result;
+    }).finally(() => {
+      if (cache.promise === request) cache.promise = null;
     });
-    return pending;
+    cache.promise = request;
+    return request;
   }
 
-  function start() {
-    if (!token) return;
-    void getMatches();
-    function schedule() {
-      const time = now();
-      setTimeout(() => {
-        void getMatches();
-        schedule();
-      }, koreaDayStart(time) + dayMs - time).unref();
+  async function getSnapshot() {
+    if (!token) return { matches: [], scheduleAvailable: false, liveAvailable: false };
+    const day = koreaDayStart(now());
+    const [scheduled, running] = await Promise.all([
+      cached(schedule, day, 5 * 60_000, false),
+      cached(live, day, 30_000, true),
+    ]);
+    const matches = new Map(scheduled.data.map(match => [match.slug, {
+      ...match,
+      live: match.status === 'running' && !running.ok,
+    }]));
+    for (const match of running.data) {
+      const previous = matches.get(match.slug);
+      const streams = [...new Set([...match.streams, ...(previous?.streams ?? [])])];
+      matches.set(match.slug, { ...match, streams, watch_url: streams[0] ?? null });
     }
-    schedule();
+    return {
+      matches: [...matches.values()].sort((a, b) => a.starts_at.localeCompare(b.starts_at)),
+      scheduleAvailable: scheduled.ok,
+      liveAvailable: running.ok,
+    };
   }
 
-  return { getMatches, start };
+  return { getSnapshot };
 }

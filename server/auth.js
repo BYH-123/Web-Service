@@ -4,6 +4,31 @@ import express from 'express';
 import pg from 'pg';
 
 const sessionSeconds = 60 * 60;
+const esportsPreferences = '/api/me/esports';
+const esportsGames = ['CS2', '리그 오브 레전드', '발로란트', '배틀그라운드'];
+const broadcastUrl = /^https:\/\/(?:www\.youtube\.com\/watch\?v=[\w-]{11}|chzzk\.naver\.com\/(?:live\/[a-f0-9]{32}\/?|video\/\d+\/?|clips\/[\w-]+))$/i;
+
+function parseEsportsPreferences(body) {
+  const { games, slots } = body ?? {};
+  if (!Array.isArray(games) || games.length > esportsGames.length ||
+      !games.every(game => esportsGames.includes(game)) || !Array.isArray(slots) || slots.length !== 3) return null;
+  const normalized = [];
+  const used = new Set();
+  for (const slot of slots) {
+    if (slot === null) {
+      normalized.push(null);
+      continue;
+    }
+    const { match, title, url } = slot ?? {};
+    const key = typeof match === 'string' && /^pandascore-[1-9]\d{0,15}$/.test(match) ? match
+      : typeof url === 'string' && url.length <= 500 && broadcastUrl.test(url) &&
+        typeof title === 'string' && title.trim() && title.length <= 120 ? url : null;
+    if (!key || used.has(key)) return null;
+    used.add(key);
+    normalized.push(key === match ? { match } : { title: title.trim(), url });
+  }
+  return { games: [...new Set(games)], slots: normalized };
+}
 
 export function mountAuth(app) {
   const env = process.env;
@@ -16,6 +41,7 @@ export function mountAuth(app) {
 
   if (!env.AUTH_DATABASE_URL || !env.BETTER_AUTH_SECRET) {
     app.use('/api/auth', (_req, res) => res.status(503).json({ message: '회원 기능 설정이 필요합니다.' }));
+    app.use(esportsPreferences, (_req, res) => res.sendStatus(503));
     return;
   }
 
@@ -64,7 +90,7 @@ export function mountAuth(app) {
     socialProviders,
   });
   const preferences = '/api/me/upcoming-games';
-  app.use(preferences, async (req, res, next) => {
+  app.use([preferences, esportsPreferences], async (req, res, next) => {
     res.set('Cache-Control', 'private, no-store');
     const session = await auth.api.getSession({ headers: fromNodeHeaders(req.headers) });
     if (!session) return res.sendStatus(401);
@@ -94,6 +120,18 @@ export function mountAuth(app) {
       where p.cards ? $2 or (select count(*) from jsonb_object_keys(p.cards)) < 5`, [res.locals.member,key,JSON.stringify(card)]);
     if (!result.rowCount) return res.sendStatus(409);
     res.json(card);
+  });
+  app.get(esportsPreferences, async (_req, res) => {
+    const result = await pool.query('select settings from game_auth.esports_preferences where user_id=$1', [res.locals.member]);
+    res.json(result.rows[0]?.settings ?? { games: [], slots: [null, null, null] });
+  });
+  app.put(esportsPreferences, express.json({ limit: '8kb' }), async (req, res) => {
+    const settings = parseEsportsPreferences(req.body);
+    if (!settings) return res.sendStatus(400);
+    await pool.query(`insert into game_auth.esports_preferences (user_id, settings)
+      values ($1, $2::jsonb) on conflict (user_id) do update set settings = excluded.settings`,
+    [res.locals.member, JSON.stringify(settings)]);
+    res.json(settings);
   });
   app.all('/api/auth/*splat', toNodeHandler(async (request) => {
     const response = await auth.handler(request);

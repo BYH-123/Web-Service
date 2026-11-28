@@ -19,7 +19,7 @@ grant select on public.esports_events to anon, authenticated;
 drop policy if exists "Read featured esports events" on public.esports_events;
 create policy "Read featured esports events" on public.esports_events
   for select to anon, authenticated
-  using (featured_order is not null and last_day >= (now() at time zone 'Asia/Seoul')::date);
+  using (featured_order between 1 and 3);
 
 insert into public.esports_events
   (slug, game, title, starts_at, last_day, event_url, watch_url, featured_order)
@@ -33,6 +33,6 @@ values
   ('pgc-2026', '배틀그라운드', 'PUBG Global Championship 2026',
    '2026-12-01 20:00+09', '2026-12-13',
    'https://pubgesports.com/ko/news/11316', 'https://pubgesports.com/ko/news/11316', 3)
-on conflict (slug) do nothing;
+on conflict do nothing;
 
 commit;

@@ -22,7 +22,6 @@ const app = express();
 mountAuth(app);
 const gameNews = createGameNewsCache();
 const todayMatches = createTodayMatches(process.env.PANDASCORE_API_TOKEN);
-const cs2Matches = createTodayMatches(process.env.PANDASCORE_API_TOKEN, fetch, Date.now, { cs2Only: true });
 
 // Cache store checks across cards and coalesce simultaneous requests.
 const steamStatus = new Map();
@@ -148,50 +147,22 @@ app.get('/api/news', async (_request, response) => {
   return response.json(data);
 });
 
-// Match-specific PGL feed for November 27 (KST), including replay after the stream ends.
-const pglMatchBroadcast = {
-  slug: 'pgl-singapore-m80-100-thieves',
-  game: 'CS2',
-  title: 'M80 vs. 100 Thieves',
-  starts_at: '2026-11-27T20:00:00+09:00',
-  event_url: 'https://www.pglesports.com/cs2/pgl-major-singapore-2026/',
-  watch_url: 'https://www.youtube.com/watch?v=JRQtOvSfPZ8',
-  kind: 'match',
-  broadcast_available: true,
-};
-
 app.get('/api/esports-events', async (request, response) => {
   response.set('Cache-Control', 'no-store');
-  if (request.query.today === '1' && request.query.game === 'cs2') {
-    try {
-      return response.json(await cs2Matches.getMatches());
-    } catch (error) {
-      console.warn('CS2 schedule unavailable:', error.message);
-      return response.status(502).json({ error: 'CS2 경기 일정을 불러오지 못했습니다.' });
-    }
-  }
   if (request.query.today === '1') {
-    const matches = await todayMatches.getMatches();
-    const now = Date.now();
-    const broadcastDay = now >= Date.parse('2026-11-27T20:00:00+09:00') &&
-      now < Date.parse('2026-11-28T00:00:00+09:00');
-    if (broadcastDay) {
-      const match = matches.find(event => event.game === 'CS2' &&
-        /\bm80\b/i.test(event.title) && /\b100\s*thieves\b/i.test(event.title));
-      const featured = match ? {
-        ...match,
-        broadcast_available: true,
-        streams: [...new Set([pglMatchBroadcast.watch_url, ...(match.streams ?? [])])],
-        watch_url: pglMatchBroadcast.watch_url,
-      } : pglMatchBroadcast;
-      return response.json([featured, ...matches.filter(event => event !== match)]);
+    const snapshot = await todayMatches.getSnapshot();
+    const matches = request.query.game === 'cs2' ? snapshot.matches.filter(match => match.game === 'CS2') : snapshot.matches;
+    if (request.query.schedule === '1') return response.json({ ...snapshot, matches });
+    if (matches.length || request.query.game === 'cs2') {
+      if (!snapshot.scheduleAvailable) return response.sendStatus(502);
+      return response.json(matches);
     }
-    if (matches.length) return response.json(matches);
   }
   const { data, error } = await supabase
     .from('esports_events')
-    .select('slug,game,title,starts_at,event_url,watch_url')
-    .not('featured_order', 'is', null)
+    .select('slug,game,title,starts_at,last_day,event_url,watch_url')
+    .gte('featured_order', 1)
+    .lte('featured_order', 3)
     .order('featured_order')
     .limit(3);
 
@@ -206,7 +177,6 @@ app.get('/api/esports-events', async (request, response) => {
 app.listen(Number(PORT), () => {
   console.log(`API listening on http://localhost:${PORT}`);
   gameNews.start();
-  todayMatches.start();
   const { SUPABASE_RELEASE_SYNC_SECRET_KEY } = process.env;
   if (SUPABASE_RELEASE_SYNC_SECRET_KEY) {
     const releaseSyncClient = createClient(SUPABASE_URL, SUPABASE_RELEASE_SYNC_SECRET_KEY, {

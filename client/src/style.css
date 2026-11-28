@@ -85,3 +85,9 @@ h1 { line-height: 1.2; }
 .account form { display: grid; gap: .65rem; max-width: 22rem; margin-bottom: 1rem; }
 .account label { display: grid; }
 .account input, .account button { font: inherit; padding: .35rem .65rem; }
+
+.esports-controls { flex-wrap: wrap; }
+.esports-controls [aria-pressed="true"] { border-color: #204faf; color: #204faf; }
+.esports-settings { display: grid; gap: .75rem; max-width: 36rem; margin: 1rem 0; }
+.esports-settings label { display: block; margin: .25rem 0; }
+.esports-settings input, .esports-settings select { max-width: 100%; font: inherit; }
