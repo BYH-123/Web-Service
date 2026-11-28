@@ -15,7 +15,39 @@ function koreaDayStart(time) {
 
 function httpsUrl(value) {
   const url = typeof value === 'string' ? URL.parse(value) : null;
-  return url?.protocol === 'https:' && !url.username && !url.password ? url.href : null;
+  return url?.protocol === 'https:' && !url.username && !url.password && !url.port ? url.href : null;
+}
+
+function playableEmbed(value) {
+  const url = httpsUrl(value);
+  return url && /^https:\/\/(?:www\.)?(?:youtube(?:-nocookie)?\.com\/embed\/|chzzk\.naver\.com\/embed\/clip\/)/.test(url) ? url : null;
+}
+
+const pglChannels = [
+  'https://www.youtube.com/@PGL/streams',
+  'https://www.twitch.tv/pgl',
+  'https://www.twitch.tv/pgl_cs2',
+  'https://kick.com/pgl',
+  'https://kick.com/pglcs2',
+];
+
+export function addEsportsBroadcastFallback(event) {
+  const date = Date.parse(event.starts_at);
+  const eventNames = [event.league, event.series, event.tournament, event.title].filter(Boolean).join(' ');
+  if (event.game !== 'CS2' || date < Date.parse('2026-11-24T00:00:00+09:00') ||
+      date >= Date.parse('2026-12-14T00:00:00+09:00') || !Number.isFinite(date) ||
+      (event.slug !== 'pgl-singapore-2026' && !/(?:major[^a-z0-9]+singapore|singapore[^a-z0-9]+major)/i.test(eventNames) &&
+        !(event.league === 'PGL' && /\bsingapore\s+2026\b/i.test(event.series ?? '')))) return event;
+
+  // PGL published individual feeds for these opening matches. The other matches keep the official channel links.
+  let youtube;
+  if (date >= Date.parse('2026-11-28T12:30:00+09:00') && date < Date.parse('2026-11-28T14:00:00+09:00')) {
+    const title = event.title ?? '';
+    if (/\bfut\b/i.test(title) && /\bfly\s*quest\b/i.test(title)) youtube = 'https://www.youtube.com/watch?v=FcPVVC-NUPw';
+    if (/\bmongolz\b/i.test(title) && /\blynn\s*vision\b/i.test(title)) youtube = 'https://www.youtube.com/watch?v=1OoZJoHCCyk';
+  }
+  const streams = [...new Set([...(event.streams ?? []), event.watch_url, youtube, ...pglChannels].filter(Boolean))];
+  return { ...event, broadcast_group: 'pgl-singapore-2026', streams, watch_url: event.watch_url ?? streams[0] };
 }
 
 export function createTodayMatches(token, fetchMatches = fetch, now = Date.now) {
@@ -56,9 +88,12 @@ export function createTodayMatches(token, fetchMatches = fetch, now = Date.now) 
         if (!game || !Number.isInteger(match.id) || !match.name || !Number.isFinite(startsAt) ||
             (!running && (startsAt < start || startsAt >= end)) || ['canceled', 'postponed'].includes(match.status)) continue;
         const streams = Array.isArray(match.streams_list) ? match.streams_list : [];
-        const channels = streams.filter(entry => httpsUrl(entry?.raw_url))
+        const channels = streams.filter(Boolean)
           .sort((a, b) => Number(!!b.official) - Number(!!a.official) || Number(b.language === 'ko') - Number(a.language === 'ko'));
-        const urls = [...new Set(channels.map(entry => httpsUrl(entry.raw_url)))];
+        const urls = [...new Set([
+          ...channels.flatMap(entry => [httpsUrl(entry.raw_url), playableEmbed(entry.embed_url)]),
+          httpsUrl(match.official_stream_url),
+        ].filter(Boolean))];
         matches.push({
           slug: `pandascore-${match.id}`,
           game,
@@ -66,6 +101,7 @@ export function createTodayMatches(token, fetchMatches = fetch, now = Date.now) 
           starts_at: new Date(startsAt).toISOString(),
           league: match.league?.name ?? null,
           series: match.serie?.full_name ?? null,
+          tournament: match.tournament?.name ?? null,
           event_url: httpsUrl(match.league?.url),
           watch_url: urls[0] ?? null,
           streams: urls,

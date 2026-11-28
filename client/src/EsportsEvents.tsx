@@ -8,6 +8,7 @@ type EsportsEvent = {
   starts_at: string;
   event_url: string | null;
   broadcast_available?: boolean;
+  broadcast_group?: string;
   league?: string | null;
   series?: string | null;
   last_day?: string;
@@ -61,7 +62,7 @@ function saveVideoAudio(key: string, audio: VideoAudio) {
   catch { /* Keep this setting in memory if storage is unavailable. */ }
 }
 
-type BroadcastSource = { platform: 'YouTube' | '치지직'; url: string; embed?: string };
+type BroadcastSource = { platform: string; url: string; embed?: string };
 
 function broadcastSource(watchUrl: string | null): BroadcastSource | null {
   if (!watchUrl) return null;
@@ -70,7 +71,7 @@ function broadcastSource(watchUrl: string | null): BroadcastSource | null {
 
   const youtubeId = url.hostname === 'youtu.be'
     ? url.pathname.match(/^\/([^/]+)\/?$/)?.[1]
-    : ['www.youtube.com', 'youtube.com', 'm.youtube.com', 'www.youtube-nocookie.com'].includes(url.hostname)
+    : ['www.youtube.com', 'youtube.com', 'm.youtube.com', 'www.youtube-nocookie.com', 'youtube-nocookie.com'].includes(url.hostname)
       ? url.searchParams.get('v') ?? url.pathname.match(/^\/(?:live|embed|shorts)\/([^/]+)\/?$/)?.[1]
       : null;
   if (youtubeId && /^[\w-]{11}$/.test(youtubeId)) {
@@ -106,13 +107,27 @@ function eventSources(event: EsportsEvent) {
   const sources = new Map<string, BroadcastSource>();
   for (const url of [...(event.streams ?? []), event.watch_url]) {
     const source = broadcastSource(url);
-    if (source) sources.set(source.url, source);
+    if (source) {
+      sources.set(source.url, source);
+      continue;
+    }
+    const link = url && URL.canParse(url) ? new URL(url) : null;
+    if (!link || link.protocol !== 'https:' || link.username || link.password || link.port) continue;
+    const host = link.hostname.replace(/^www\./, '');
+    const platform = host === 'twitch.tv' || host.endsWith('.twitch.tv') ? 'Twitch'
+      : host === 'kick.com' ? 'Kick'
+      : host === 'sooplive.co.kr' || host.endsWith('.sooplive.co.kr') ? 'SOOP'
+      : host;
+    sources.set(link.href, { url: link.href, platform });
   }
   return [...sources.values()].sort((a, b) => Number(b.platform === 'YouTube') - Number(a.platform === 'YouTube'));
 }
 
 function SourceLink({ source }: { source: BroadcastSource }) {
-  return <a href={source.url} target="_blank" rel="noopener noreferrer">{source.platform}에서 시청 ↗</a>;
+  const channel = ['Twitch', 'Kick', 'SOOP'].includes(source.platform) ? new URL(source.url).pathname.split('/')[1] : '';
+  return <a href={source.url} target="_blank" rel="noopener noreferrer">
+    {source.platform}{channel && ` (${channel})`}에서 시청 ↗
+  </a>;
 }
 
 function Broadcast({ title, sources, eventUrl }: { title: string; sources: BroadcastSource[]; eventUrl?: string | null }) {
@@ -202,7 +217,7 @@ function Broadcast({ title, sources, eventUrl }: { title: string; sources: Broad
   return <>
     {embed && <iframe ref={frame} id={playerId} key={embed} className="esports-player" src={embed} title={title} allow={current.platform === 'YouTube' ? 'autoplay; fullscreen' : 'fullscreen'} allowFullScreen />}
     {playable.length > 1 && <button onClick={() => setFailed(previous => [...previous,current.url])}>다른 중계로 전환</button>}
-    {!embed && <p>{sources.length ? '방송은 플랫폼에서 열어 시청할 수 있어요.' : '등록된 중계가 없습니다.'}</p>}
+    {!embed && <p>{sources.length ? '아래 링크에서 중계를 시청할 수 있어요.' : '경기 데이터에 중계 주소가 아직 제공되지 않았어요.'}</p>}
     {sources.map(item => <SourceLink key={item.url} source={item} />)}
     {!sources.length && eventUrl && <a href={eventUrl} target="_blank" rel="noopener noreferrer">공식 일정 보기 ↗</a>}
   </>;
@@ -235,8 +250,10 @@ function cleanTitle(title: string) {
 
 function featuredMatch(event: EsportsEvent, matches: EsportsEvent[], now: number) {
   const candidates = matches.filter(match => match.game === event.game && canOpenBroadcast(match, now) &&
-    [match.league, match.series].some(title => title && cleanTitle(title) === cleanTitle(event.title)));
+    ((event.broadcast_group && match.broadcast_group === event.broadcast_group) ||
+      [match.league, match.series].some(title => title && cleanTitle(title) === cleanTitle(event.title))));
   return candidates.find(match => match.live && eventSources(match).some(source => source.embed))
+    ?? candidates.find(match => match.live && eventSources(match).length)
     ?? candidates.find(match => match.live) ?? candidates[0];
 }
 
@@ -260,7 +277,7 @@ function EventCard({ card, matches, now, fallback }: {
       {!sources.length && fallback && <SourceLink source={fallback} />}
       {mayPlay && (sources.length > 0 || !fallback)
         ? <Broadcast key={event.slug} title={event.title + ' 중계'} sources={sources} eventUrl={event.event_url} />
-        : sources[0] ? <SourceLink source={sources[0]} />
+        : sources.length ? sources.map(source => <SourceLink key={source.url} source={source} />)
         : event.event_url && <a href={event.event_url} target="_blank" rel="noopener noreferrer">공식 일정 보기 ↗</a>}
     </div>
   );
@@ -447,6 +464,7 @@ function EsportsBoard({ member, featured, matches, now, schedule, refresh }: {
   const featuredWithStream = tournaments.find(event => featuredMatch(event, matches, now));
   const card = selectedGame && !custom ? events.find(event => event.slug === selectedMatch)
     ?? (featuredWithStream || events.find(event => event.live && eventSources(event).some(source => source.embed))
+      || events.find(event => event.live && eventSources(event).length)
       || events.find(event => event.live) || events.find(event => canOpenBroadcast(event, now))
       || today.find(event => Date.parse(event.starts_at) >= now) || events[0]) : undefined;
   const fallback = selectedGame && Object.hasOwn(officialChannels, selectedGame)

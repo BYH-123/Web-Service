@@ -1,6 +1,6 @@
 import { getExtraStoreDeals } from './extra-store-deals.js';
 import { getMicrosoftDeals } from './microsoft-deals.js';
-import { createTodayMatches } from './esports-today.js';
+import { addEsportsBroadcastFallback, createTodayMatches } from './esports-today.js';
 import { createGameNewsCache } from './game-news.js';
 import { mountAuth } from './auth.js';
 import express from 'express';
@@ -151,7 +151,7 @@ app.get('/api/esports-events', async (request, response) => {
   response.set('Cache-Control', 'no-store');
   if (request.query.today === '1') {
     const snapshot = await todayMatches.getSnapshot();
-    const edited = await applyEdits('esports', snapshot.matches);
+    const edited = await applyEdits('esports', snapshot.matches.map(addEsportsBroadcastFallback));
     const matches = request.query.game === 'cs2' ? edited.filter(match => match.game === 'CS2') : edited;
     if (request.query.schedule === '1') return response.json({ ...snapshot, matches });
     if (matches.length || request.query.game === 'cs2') {
@@ -170,7 +170,7 @@ app.get('/api/esports-events', async (request, response) => {
     return response.status(502).json({ error: '대회 목록을 불러오지 못했습니다.' });
   }
 
-  return response.json(await applyEdits('esports', data));
+  return response.json(await applyEdits('esports', data.map(addEsportsBroadcastFallback)));
 });
 
 app.listen(Number(PORT), () => {
