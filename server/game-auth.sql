@@ -42,4 +42,12 @@ create table if not exists game_auth.esports_preferences (
   settings jsonb not null
 );
 revoke all on game_auth.esports_preferences from public, anon, authenticated;
+create table if not exists game_auth.content_edits (
+  section text not null,
+  item_id text not null,
+  patch jsonb not null,
+  primary key (section, item_id)
+);
+revoke all on game_auth.content_edits from public, anon, authenticated;
+alter table game_auth.content_edits enable row level security;
 commit;

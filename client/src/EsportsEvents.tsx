@@ -1,3 +1,4 @@
+import { AdminEdit } from './AdminEdit';
 import { useEffect, useId, useState, useRef } from 'react';
 import type { FormEvent } from 'react';
 
@@ -339,6 +340,7 @@ function EventCard({ card, matches, now }: { card: Card; matches: EsportsEvent[]
       <p>{event.game} · {status}</p>
       <h3>{card.title}</h3>
       {match && <p>{match.title}</p>}
+        <AdminEdit section="esports" row={card} />
       <p>시작 <time dateTime={event.starts_at}>{dateTime.format(new Date(event.starts_at))}</time> (KST)</p>
       {canOpenBroadcast(event, now)
         ? <Broadcast key={event.slug} title={event.title + ' 중계'} sources={sources} eventUrl={event.event_url} />

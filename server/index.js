@@ -19,7 +19,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
 });
 
 const app = express();
-mountAuth(app);
+const applyEdits = mountAuth(app);
 const gameNews = createGameNewsCache();
 const todayMatches = createTodayMatches(process.env.PANDASCORE_API_TOKEN);
 
@@ -60,7 +60,7 @@ app.get('/api/upcoming-games', async (_request, response) => {
     return response.status(502).json({ error: '출시 예정 게임을 불러오지 못했습니다.' });
   }
 
-  return response.json(data.map((game) => ({
+  return response.json((await applyEdits('upcoming', data)).map((game) => ({
     ...game,
     platforms: game.releases.map((release) => release.platform),
     release_date: game.releases.find((release) => release.release_date)?.release_date ?? null,
@@ -89,7 +89,7 @@ app.get('/api/deals', async (request, response) => {
     return response.status(502).json({ error: '할인 목록을 불러오지 못했습니다.' });
   }
 
-  if (request.query.catalog !== '1') return response.json(data);
+  if (request.query.catalog !== '1') return response.json(await applyEdits('deals', data));
 
   const sources = {
     steam: getSteamDeals,
@@ -120,7 +120,7 @@ app.get('/api/deals', async (request, response) => {
     entry.store !== 'steam' && entry.store !== 'microsoft' &&
     !liveKeys.has(JSON.stringify([entry.store, entry.product_id, entry.offer_type])));
   return response.json({
-    deals: [...liveDeals, ...otherDeals],
+    deals: await applyEdits('deals', [...liveDeals, ...otherDeals]),
     steamUnavailable: unavailableStores.includes('steam'),
     microsoftUnavailable: unavailableStores.includes('microsoft'),
     unavailableStores,
@@ -130,7 +130,7 @@ app.get('/api/deals', async (request, response) => {
 app.get('/api/news', async (_request, response) => {
   response.set('Cache-Control', 'no-store');
   const latest = await gameNews.getArticles();
-  if (latest) return response.json(latest);
+  if (latest) return response.json(await applyEdits('news', latest));
 
   const { data, error } = await supabase
     .from('industry_news')
@@ -144,14 +144,15 @@ app.get('/api/news', async (_request, response) => {
     return response.status(502).json({ error: '게임 산업 뉴스를 불러오지 못했습니다.' });
   }
 
-  return response.json(data);
+  return response.json(await applyEdits('news', data));
 });
 
 app.get('/api/esports-events', async (request, response) => {
   response.set('Cache-Control', 'no-store');
   if (request.query.today === '1') {
     const snapshot = await todayMatches.getSnapshot();
-    const matches = request.query.game === 'cs2' ? snapshot.matches.filter(match => match.game === 'CS2') : snapshot.matches;
+    const edited = await applyEdits('esports', snapshot.matches);
+    const matches = request.query.game === 'cs2' ? edited.filter(match => match.game === 'CS2') : edited;
     if (request.query.schedule === '1') return response.json({ ...snapshot, matches });
     if (matches.length || request.query.game === 'cs2') {
       if (!snapshot.scheduleAvailable) return response.sendStatus(502);
@@ -171,7 +172,7 @@ app.get('/api/esports-events', async (request, response) => {
     return response.status(502).json({ error: '대회 목록을 불러오지 못했습니다.' });
   }
 
-  return response.json(data);
+  return response.json(await applyEdits('esports', data));
 });
 
 app.listen(Number(PORT), () => {

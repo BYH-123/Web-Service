@@ -2,6 +2,7 @@ import { betterAuth } from 'better-auth';
 import { fromNodeHeaders, toNodeHandler } from 'better-auth/node';
 import express from 'express';
 import pg from 'pg';
+import { mountAdmin } from './admin-content.js';
 
 const sessionSeconds = 60 * 60;
 const esportsPreferences = '/api/me/esports';
@@ -42,7 +43,7 @@ export function mountAuth(app) {
   if (!env.AUTH_DATABASE_URL || !env.BETTER_AUTH_SECRET) {
     app.use('/api/auth', (_req, res) => res.status(503).json({ message: '회원 기능 설정이 필요합니다.' }));
     app.use(esportsPreferences, (_req, res) => res.sendStatus(503));
-    return;
+    return async (_section, rows) => rows;
   }
 
   const socialProviders = {};
@@ -90,13 +91,15 @@ export function mountAuth(app) {
     socialProviders,
   });
   const preferences = '/api/me/upcoming-games';
-  app.use([preferences, esportsPreferences], async (req, res, next) => {
+  const requireMember = async (req, res, next) => {
     res.set('Cache-Control', 'private, no-store');
     const session = await auth.api.getSession({ headers: fromNodeHeaders(req.headers) });
     if (!session) return res.sendStatus(401);
     res.locals.member = session.user.id;
     next();
-  });
+  };
+  const applyEdits = mountAdmin(app, pool, requireMember);
+  app.use([preferences, esportsPreferences], requireMember);
   app.get(preferences, async (_req, res) => {
     const result = await pool.query('select cards from game_auth.upcoming_preferences where user_id=$1', [res.locals.member]);
     res.json(result.rows[0]?.cards ?? {});
@@ -148,4 +151,5 @@ export function mountAuth(app) {
     }
     return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
   }));
+  return applyEdits;
 }

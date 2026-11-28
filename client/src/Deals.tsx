@@ -1,3 +1,4 @@
+import { AdminEdit } from './AdminEdit';
 import { useEffect, useState } from 'react';
 
 const stores = {
@@ -180,6 +181,7 @@ export function Deals() {
                   <li className="game" key={JSON.stringify([deal.store, deal.product_id, deal.offer_type])}>
                     <p>{offerLabels[deal.offer_type]}</p>
                     <h4>{deal.title}</h4>
+        <AdminEdit section="deals" row={deal} />
                     <p>
                       {deal.original_price !== null && <><del>{won.format(deal.original_price)}원</del>{' '}</>}
                       {!deal.price_note && <strong>{deal.sale_price === null ? '가격 미공개' : won.format(deal.sale_price) + '원'}</strong>}
