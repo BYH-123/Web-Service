@@ -517,7 +517,7 @@ function EsportsBoard({ member, featured, matches, now, schedule, refresh }: {
         {schedule?.scheduleAvailable && !today.length && <p>오늘 예정된 경기가 없습니다.</p>}
         {schedule?.scheduleAvailable && !!today.length && !displayedMatches.length && <p>오늘 관심 종목의 경기가 없습니다.</p>}
         {!!displayedMatches.length && (
-          <ul className="esports-schedule-list" role="list">
+          <ul className="esports-schedule-list" role="list" tabIndex={0} aria-labelledby="esports-schedule-heading">
             {displayedMatches.map(match => {
               const status = match.live ? '진행 중' : match.status === 'finished' ? '종료'
                 : Date.parse(match.starts_at) > now ? '예정' : null;
