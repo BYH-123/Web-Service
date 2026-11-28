@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useId, useState, useRef } from 'react';
 import type { FormEvent } from 'react';
 
 type EsportsEvent = {
@@ -73,9 +73,10 @@ function SourceLink({ source }: { source: BroadcastSource }) {
   return <a href={source.url} target="_blank" rel="noopener noreferrer">{source.platform}에서 시청 ↗</a>;
 }
 
-function Broadcast({ event, sources }: { event: EsportsEvent; sources: BroadcastSource[] }) {
+function Broadcast({ title, sources, eventUrl }: { title: string; sources: BroadcastSource[]; eventUrl?: string | null }) {
   const [failed, setFailed] = useState<string[]>([]);
   const frame = useRef<HTMLIFrameElement>(null);
+  const playerId = useId();
   const playable = sources.filter(item => item.embed && !failed.includes(item.url));
   const current = playable[0];
   const source = current?.url;
@@ -90,7 +91,7 @@ function Broadcast({ event, sources }: { event: EsportsEvent; sources: Broadcast
     let joinedLive = false;
     let telemetry: { duration?: number; currentTime?: number; playerState?: number; videoData?: { isLive?: boolean } } = {};
     function send(command: object) {
-      player?.postMessage(JSON.stringify({ id: 'game-broadcast', channel: 'widget', ...command }), origin);
+      player?.postMessage(JSON.stringify({ id: playerId, channel: 'widget', ...command }), origin);
     }
     function receive(e: MessageEvent) {
       if (e.source !== player || e.origin !== origin) return;
@@ -115,26 +116,32 @@ function Broadcast({ event, sources }: { event: EsportsEvent; sources: Broadcast
     const timer = setInterval(() => { if (!ready) send({ event: 'listening' }); },500);
     const timeout = setTimeout(() => { if (!ready) setFailed(previous => [...previous,source]); },15_000);
     return () => { clearInterval(timer); clearTimeout(timeout); window.removeEventListener('message',receive); };
-  },[source,embed]);
+  },[source,embed,playerId]);
   return <>
-    {embed && <iframe ref={frame} id="game-broadcast" key={embed} className="esports-player" src={embed} title={event.title + ' 중계'} allow={current.platform === 'YouTube' ? 'autoplay; fullscreen' : 'fullscreen'} allowFullScreen />}
+    {embed && <iframe ref={frame} id={playerId} key={embed} className="esports-player" src={embed} title={title} allow={current.platform === 'YouTube' ? 'autoplay; fullscreen' : 'fullscreen'} allowFullScreen />}
     {playable.length > 1 && <button onClick={() => setFailed(previous => [...previous,current.url])}>다른 중계로 전환</button>}
     {!embed && <p>페이지 안에서 재생할 수 있는 중계가 없습니다.</p>}
     {sources.map(item => <SourceLink key={item.url} source={item} />)}
-    {!sources.length && event.event_url && <a href={event.event_url} target="_blank" rel="noopener noreferrer">공식 일정 보기 ↗</a>}
+    {!sources.length && eventUrl && <a href={eventUrl} target="_blank" rel="noopener noreferrer">공식 일정 보기 ↗</a>}
   </>;
 }
 
 function BroadcastPreview() {
-  const [preview, setPreview] = useState<BroadcastSource | null>(null);
+  const [sources, setSources] = useState<BroadcastSource[]>([]);
+  const [selectedUrl, setSelectedUrl] = useState('');
   const [error, setError] = useState(false);
+  const index = sources.findIndex(source => source.url === selectedUrl);
+  const preview = sources[index];
 
   function play(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const url = String(new FormData(event.currentTarget).get('broadcastUrl') ?? '').trim();
     const source = broadcastSource(url);
-    setPreview(source);
     setError(!source);
+    if (!source) return;
+    setSources(previous => previous.some(item => item.url === source.url) ? previous : [...previous, source]);
+    setSelectedUrl(source.url);
+    event.currentTarget.reset();
   }
 
   return (
@@ -142,20 +149,22 @@ function BroadcastPreview() {
       <h3 id="broadcast-preview-heading">방송 재생 테스트</h3>
       <form onSubmit={play}>
         <label htmlFor="broadcast-preview-url">방송 URL</label>
-        <p id="broadcast-preview-help">YouTube 영상·라이브 또는 치지직 방송·클립 링크를 입력하세요.</p>
+        <p id="broadcast-preview-help">YouTube 또는 치지직 링크를 추가하세요. 두 개 이상 추가하면 화살표로 방송을 바꿀 수 있어요.</p>
         <div className="broadcast-preview-controls">
           <input id="broadcast-preview-url" name="broadcastUrl" type="url" placeholder="https://…" aria-describedby="broadcast-preview-help" required />
-          <button type="submit">재생</button>
+          <button type="submit">추가 및 재생</button>
         </div>
       </form>
       {error && <p role="alert">지원하는 형식의 YouTube 또는 치지직 링크를 입력해 주세요.</p>}
-      {preview && (
-        <>
-          {preview.embed
-            ? <iframe key={preview.embed} className="esports-player" src={preview.embed} title="입력한 방송" allow={preview.platform === 'YouTube' ? 'autoplay; fullscreen' : 'fullscreen'} allowFullScreen />
-            : <p>치지직에서 방송을 열어 시청할 수 있어요.</p>}
-          <SourceLink source={preview} />
-        </>
+      {preview && <Broadcast key={preview.url} title={`테스트 방송 ${index + 1}`} sources={[preview]} />}
+      {sources.length > 1 && (
+        <div className="esports-controls">
+          <button type="button" aria-label="이전 테스트 방송" onClick={() => setSelectedUrl(sources[(index + sources.length - 1) % sources.length].url)}>←</button>
+          <select aria-label="시청할 테스트 방송" value={selectedUrl} onChange={event => setSelectedUrl(event.target.value)}>
+            {sources.map((source, i) => <option key={source.url} value={source.url}>테스트 방송 {i + 1} · {source.platform}</option>)}
+          </select>
+          <button type="button" aria-label="다음 테스트 방송" onClick={() => setSelectedUrl(sources[(index + 1) % sources.length].url)}>→</button>
+        </div>
       )}
     </section>
   );
@@ -231,7 +240,7 @@ export function EsportsEvents({ member }: { member: string | null }) {
             <h3>{event.title}</h3>
             <p>시작 <time dateTime={event.starts_at}>{dateTime.format(new Date(event.starts_at))}</time> (KST)</p>
             {event.live || event.broadcast_available
-              ? <Broadcast key={event.slug} event={event} sources={sources} />
+              ? <Broadcast key={event.slug} title={event.title + ' 중계'} sources={sources} eventUrl={event.event_url} />
               : sources[0] ? <SourceLink source={sources[0]} />
               : event.event_url && <a href={event.event_url} target="_blank" rel="noopener noreferrer">공식 일정 보기 ↗</a>}
           </div>
