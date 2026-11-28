@@ -10,6 +10,8 @@ import './dashboard.css';
 import { GameCover } from './GameCover';
 
 type Game = {
+  image_url?:string | null;
+  admin_id?:string;
   slot: number;
   manual_releases?: boolean;
   slug: string;
@@ -145,7 +147,7 @@ function Recommendations({ games }: { games: Game[] }) {
   </div>
       {!group.length && <p>등록된 추천 게임이 없습니다.</p>}
       <ul className="games">{group.map(game => <li className="game" key={game.slot}>
-        <GameCover url={game.source_url} />
+        <GameCover section="upcoming" item={game} url={game.source_url} />
         <h3>{game.title}</h3>
         {!game.releases.length && <p>출시일 미정</p>}
         {game.releases.map(r => <p key={r.platform}>{r.platform} · {r.confirmed_released ? '출시 완료' : <ReleaseStatus date={r.release_date} year={r.release_year} link={!game.manual_releases && r.platform === 'Steam' ? game.source_url : undefined} />}</p>)}

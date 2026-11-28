@@ -38,3 +38,13 @@ button[aria-pressed=true],.admin-tabs button[aria-pressed=true],.esports-game-pi
 .management-grid input{max-width:100%}.management-grid fieldset{min-width:0;border:1px solid var(--line)}
 @media(max-width:800px){.dashboard,.management-grid,.admin-dashboard{grid-template-columns:1fr}.admin-dashboard>nav{flex-direction:row;flex-wrap:wrap}.mast{gap:.5rem}.mast nav{order:3;width:100%}.mast nav a{padding:4px 8px}.admin-list{max-height:38vh}.deals,.industry-news,.upcoming{max-height:32rem}}
 @media(max-width:480px){.games{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+.support-panel{max-width:44rem;margin:1rem auto;padding:1.5rem;background:var(--panel);border:1px solid var(--line);border-radius:10px}
+.support-panel fieldset{display:grid;gap:1rem;padding:0;border:0}
+.support-panel label{display:grid;gap:.3rem}
+.support-panel textarea{resize:vertical}
+.cover-error,.support-ticket{padding:.8rem;border:1px solid var(--line);border-radius:6px}
+.support-ticket{margin:.75rem 0}
+.support-ticket button{margin:.3rem}
+.report-body{white-space:pre-wrap;overflow-wrap:anywhere}
+main:has(.support-panel) .mast nav{display:none}

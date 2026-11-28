@@ -2,12 +2,12 @@ import { useId, useState } from 'react';
 import type { FormEvent } from 'react';
 
 const forms = {
-  upcoming:['title','source_url'],
+  upcoming:['image_url','title','source_url'],
   news:['title','summary','category','source_name','source_url'],
   esports:['title','game','starts_at','watch_url','event_url'],
-  deals:['title','product_url','original_price','sale_price','discount_percent','price_note','ends_at'],
+  deals:['image_url','title','product_url','original_price','sale_price','discount_percent','price_note','ends_at'],
 } as const;
-const labels:Record<string,string> = {title:'제목',source_url:'출처 링크',summary:'요약',category:'분류',source_name:'매체',game:'종목',starts_at:'시작 시각 (한국 시간)',watch_url:'중계 링크',event_url:'공식 일정 링크',product_url:'스토어 링크',original_price:'정가 (원)',sale_price:'할인가 (원)',discount_percent:'할인율 (%)',price_note:'가격 안내',ends_at:'종료 시각 (한국 시간)'};
+const labels:Record<string,string> = {image_url:'교체 이미지 주소 (HTTPS · 비우면 기본 이미지)',title:'제목',source_url:'출처 링크',summary:'요약',category:'분류',source_name:'매체',game:'종목',starts_at:'시작 시각 (한국 시간)',watch_url:'중계 링크',event_url:'공식 일정 링크',product_url:'스토어 링크',original_price:'정가 (원)',sale_price:'할인가 (원)',discount_percent:'할인율 (%)',price_note:'가격 안내',ends_at:'종료 시각 (한국 시간)'};
 type Release = {platform:string; release_date:string|null; release_year:number|null; confirmed_released:boolean};
 function releases(row:Record<string,unknown>):Release[] {
   return Array.isArray(row.releases) ? row.releases.map(r => ({platform:r.platform, release_date:r.release_date ?? null,release_year:r.release_year ?? null,confirmed_released:!!r.confirmed_released})) : [];
@@ -26,7 +26,9 @@ function display(k:string,v:unknown) {
 export function AdminEdit({section,row,onSaved}:{onSaved:()=>void; section:keyof typeof forms; row:Record<string,unknown>}) {
   const id = useId();
   const [original,setOriginal] = useState<typeof row|null>(row);
-  const [dates,setDates] = useState<Release[]>([]);
+  const [dates,setDates] = useState<Release[]>(()=>releases(row));
+  const [preview,setPreview] = useState('');
+  const [badPreview,setBadPreview] = useState('');
   const [busy,setBusy] = useState(false);
   const [message,setMessage] = useState('');
   if (!row.admin_id) return null;
@@ -55,6 +57,15 @@ export function AdminEdit({section,row,onSaved}:{onSaved:()=>void; section:keyof
   return original ? <form className="account" aria-labelledby={id} onSubmit={submit}>
     <fieldset disabled={busy}><legend id={id}>{String(original.title)} 공개 정보 수정</legend>
     {forms[section].map(k => <label key={k}>{labels[k]} <input name={k} type={fieldType(k)} defaultValue={display(k,original[k])} min={fieldType(k)==='number'?0:undefined} max={k==='discount_percent'?100:undefined} required={['title','source_url','product_url','category','source_name','game','starts_at'].includes(k)}/></label>)}
+    {(section === 'deals' || section === 'upcoming') && <div>
+      <button type="button" onClick={e=>{
+        const url = String(new FormData(e.currentTarget.form!).get('image_url')??'').trim();
+        setBadPreview('');setPreview(url.startsWith('https://')?url:'');
+        setMessage(url.startsWith('https://')?'':'미리 볼 HTTPS 이미지 주소를 입력해 주세요.');
+      }}>이미지 미리보기</button>
+      {preview && (badPreview===preview ? <p role="status">이 주소에서 이미지를 불러오지 못했습니다.</p> :
+        <img key={preview} className="cover" src={preview} alt="교체 이미지 미리보기" onError={()=>setBadPreview(preview)}/>)}
+    </div>}
     {section === 'upcoming' && <div>{dates.map((r,i) => <fieldset key={i}><legend>플랫폼 {i+1}</legend>
       <label>플랫폼 <input required value={r.platform} onChange={e=>setDates(dates.map((v,n)=>n===i?{...v,platform:e.target.value}:v))}/></label>
       <label>출시일 <input type="date" value={r.release_date??''} onChange={e=>setDates(dates.map((v,n)=>n===i?{...v,release_date:e.target.value||null}:v))}/></label>

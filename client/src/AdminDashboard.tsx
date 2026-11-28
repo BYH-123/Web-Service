@@ -1,3 +1,5 @@
+import { ReportContext, ReportForm, ReportInbox } from './Reports';
+import type { Target } from './Reports';
 import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
 import { AdminEdit } from './AdminEdit';
@@ -35,7 +37,7 @@ function MemberRow({user,refresh}:{user:Member;refresh:()=>void}) {
     {error && <span role="alert">{error}</span>}</form> : <button onClick={()=>setEdit(true)}>닉네임 수정</button>}</li>;
 }
 
-function Manager({section}:{section:Section}) {
+function Manager({section,targetId}:{section:Section;targetId:string}) {
   const [text,setText] = useState('');
   const [query,setQuery] = useState('');
   const [offset,setOffset] = useState(0);
@@ -44,7 +46,7 @@ function Manager({section}:{section:Section}) {
   const [members,setMembers] = useState<Member[]>([]);
   const [more,setMore] = useState(false);
   const [status,setStatus] = useState('loading');
-  const [selected,setSelected] = useState('');
+  const [selected,setSelected] = useState(targetId);
   const refresh = ()=>setRevision(n=>n+1);
   useEffect(()=>{
     const controller = new AbortController();
@@ -72,7 +74,7 @@ function Manager({section}:{section:Section}) {
   },[section,query,offset,revision]);
   const visible = rows.filter(r=>[r.title,r.game,r.store,r.source_name].some(v=>String(v??'').toLowerCase().includes(text.trim().toLowerCase())));
   const selectedMember = members.find(u=>u.id===selected) ?? members[0];
-  const selectedRow = visible.find((r,i)=>String(r.admin_id??i)===selected) ?? visible[0];
+  const selectedRow = visible.find((r,i)=>String(r.admin_id??i)===selected) ?? (selected && selected===targetId ? undefined : visible[0]);
   return <section aria-label={sections[section]}><h2>{sections[section]}</h2>
     <form className="admin-search" onSubmit={e=>{e.preventDefault();setOffset(0);setQuery(text.trim());}}>
       <label>{section==='members'?'닉네임·이메일 검색':'항목 검색'} <input type="search" value={text} onChange={e=>setText(e.target.value)}/></label>
@@ -87,7 +89,7 @@ function Manager({section}:{section:Section}) {
         {(offset>0 || more) && <div className="admin-tabs"><button disabled={!offset} onClick={()=>setOffset(offset-30)}>이전</button>
         <span>{Math.floor(offset/30)+1}페이지</span><button disabled={!more} onClick={()=>setOffset(offset+30)}>다음</button></div>}
       </> : <>
-        {!visible.length && <p>표시할 항목이 없습니다.</p>}
+        {targetId && selected===targetId && !selectedRow && <p role="status">신고된 카드가 현재 목록에 없습니다.</p>}{!visible.length && <p>표시할 항목이 없습니다.</p>}
         <div className="management-grid"><ul className="admin-list">{visible.map((row,i)=><li key={String(row.admin_id??i)}>
           <button aria-pressed={row===selectedRow} onClick={()=>setSelected(String(row.admin_id??i))}><strong>{String(row.title)}</strong><small>{[row.store,row.game,row.source_name,row.audience==='global'?'글로벌 추천':row.audience==='kr'?'국내 추천':''].filter(Boolean).join(' · ')}</small></button>
         </li>)}</ul>{selectedRow && <aside><h3>{sections[section]} 정보 수정</h3><p>{String(selectedRow.title)}</p>
@@ -97,11 +99,13 @@ function Manager({section}:{section:Section}) {
 }
 
 export function AdminDashboard() {
-  const [section,setSection] = useState<Section>('members');
+  const [section,setSection] = useState<Section|'reports'>('members');
+  const [targetId,setTargetId] = useState('');
   return <section className="admin-dashboard"><h1>관리자 센터</h1>
     <nav aria-label="관리 항목" className="admin-tabs">{(Object.keys(sections) as Section[]).map(k=>
-      <button key={k} aria-pressed={section===k} onClick={()=>setSection(k)}>{sections[k]}</button>)}</nav>
-    <Manager key={section} section={section}/>
+      <button key={k} aria-pressed={section===k} onClick={()=>{setTargetId('');setSection(k);}}>{sections[k]}</button>)}<button aria-pressed={section==='reports'} onClick={()=>setSection('reports')}>신고·문의함</button></nav>
+    {section==='reports' ? <ReportInbox edit={(area,id)=>{setTargetId(id);setSection(area);}}/> :
+      <Manager key={section} section={section} targetId={targetId}/>}
   </section>;
 }
 
@@ -118,11 +122,14 @@ export function AdminAccess({member,children}:{member:string|null;children:React
     return () => controller.abort();
   },[member]);
   const active = !!member && verified === member;
-  return <>
-    {active && <nav className="admin-tabs" aria-label="화면 선택">
-      <button aria-pressed={!management} onClick={()=>setManagement(false)}>게임 정보</button>
-      <button aria-pressed={management} onClick={()=>setManagement(true)}>관리자 센터</button>
-    </nav>}
-    {active && management ? <AdminDashboard /> : children}
-  </>;
+  const [support,setSupport] = useState(false);
+  const [target,setTarget] = useState<Target|null>(null);
+  return <ReportContext.Provider value={item=>{setTarget(item);setSupport(true);}}>
+    <nav className="admin-tabs" aria-label="화면 선택">
+      <button aria-pressed={!support && !management} onClick={()=>{setSupport(false);setManagement(false);}}>게임 정보</button>
+      <button aria-pressed={support} onClick={()=>{setTarget(null);setSupport(true);}}>신고·문의</button>
+      {active && <button aria-pressed={!support && management} onClick={()=>{setSupport(false);setManagement(true);}}>관리자 센터</button>}
+    </nav>
+    {support ? <ReportForm key={target?.itemTitle??'general'} target={target}/> : active && management ? <AdminDashboard /> : children}
+  </ReportContext.Provider>;
 }

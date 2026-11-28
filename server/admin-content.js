@@ -1,9 +1,10 @@
+import { mountReports } from './support-reports.js';
 import express from 'express';
 import { createHash } from 'node:crypto';
 
 const fields = {
-  upcoming: { title:'text', source_url:'url', releases:'releases' },
-  deals: { title:'text', product_url:'url', original_price:'price', sale_price:'price', discount_percent:'percent', price_note:'optional', ends_at:'optionalTime' },
+  upcoming: { image_url:'optionalUrl', title:'text', source_url:'url', releases:'releases' },
+  deals: { image_url:'optionalUrl', title:'text', product_url:'url', original_price:'price', sale_price:'price', discount_percent:'percent', price_note:'optional', ends_at:'optionalTime' },
   esports: { title:'text', game:'text', watch_url:'optionalUrl', event_url:'optionalUrl', starts_at:'time' },
   news: { title:'text', summary:'optional', category:'text', source_name:'text', source_url:'url' },
 };
@@ -37,6 +38,7 @@ export function mountAdmin(app, pool, requireMember) {
   const isAdmin = res => !!adminId && res.locals.member === adminId;
   app.get('/api/me/admin', requireMember, (_req,res) => res.json({ admin:isAdmin(res) }));
   app.use('/api/admin', requireMember, (_req,res,next) => isAdmin(res) ? next() : res.sendStatus(403));
+  mountReports(app, pool);
   app.get('/api/admin/members', async (req,res) => {
     const offset = Number(req.query.offset ?? 0);
     const search = req.query.q ?? '';
